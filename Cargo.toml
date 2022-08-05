@@ -1,0 +1,15 @@
+[package]
+name = "bevy-generate-mesh-on-gpu"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = { path = "../bevy" }
+futures-intrusive = "0.4.0"
+wgpu = "0.13"
+pollster = "0.2.5"
+
+[[example]]
+name = "generate"
