@@ -20,8 +20,8 @@ pub mod transfer;
 pub use from_raw::FromRaw;
 pub use generate_mesh::GenerateMesh;
 use transfer::{
-    collect_pending_transfers, extract_transfers, prepare_transfers, resolve_pending_transfers,
-    PendingTransfers, PrepareNextFrameTransfers,
+    extract_transfers, prepare_transfers, queue_extract_transfers, resolve_pending_transfers,
+    PrepareNextFrameTransfers,
 };
 pub use transfer::{GpuTransfer, Transfer, TransferDescriptor, Transferable};
 
@@ -37,7 +37,6 @@ pub struct GenerateMeshPlugin;
 impl Plugin for GenerateMeshPlugin {
     fn build(&self, app: &mut App) {
         app.add_asset::<GenerateMesh>()
-            .init_resource::<PendingTransfers<GenerateMesh, Mesh>>()
             .init_resource::<Vec<Transfer<GenerateMesh, Mesh>>>()
             .add_plugin(RenderAssetPlugin::<GenerateMesh>::default())
             // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
@@ -48,7 +47,7 @@ impl Plugin for GenerateMeshPlugin {
             )
             .add_system_to_stage(
                 CoreStage::Last,
-                collect_pending_transfers::<GenerateMesh, Mesh>,
+                queue_extract_transfers::<GenerateMesh, Mesh>,
             );
 
         let (sender, receiver) = transfer::create_transfer_channels::<GenerateMesh, Mesh>();

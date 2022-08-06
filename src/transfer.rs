@@ -96,14 +96,14 @@ impl<T: Asset, U: Asset> Transfer<T, U> {
         }
     }
 }
-pub struct PendingTransfers<T: Asset, U: Asset> {
-    pub pending: Vec<Transfer<T, U>>,
+pub struct ExtractTransfers<T: Asset, U: Asset> {
+    pub extract: Vec<Transfer<T, U>>,
 }
 
-impl<T: Asset, U: Asset> Default for PendingTransfers<T, U> {
+impl<T: Asset, U: Asset> Default for ExtractTransfers<T, U> {
     fn default() -> Self {
         Self {
-            pending: Vec::new(),
+            extract: Vec::new(),
         }
     }
 }
@@ -124,26 +124,26 @@ pub struct PreparedTransfers<T: Asset, U: Asset> {
     pub prepared: Vec<GpuTransfer<T, U>>,
 }
 
-pub(crate) fn collect_pending_transfers<T, U>(
+pub(crate) fn queue_extract_transfers<T, U>(
+    mut commands: Commands,
     mut transfers: ResMut<Vec<Transfer<T, U>>>,
-    mut pending_transfers: ResMut<PendingTransfers<T, U>>,
 ) where
     T: Asset,
     U: Asset,
 {
-    //let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
-
-    pending_transfers.pending.extend(transfers.drain(..));
+    commands.insert_resource(ExtractTransfers {
+        extract: transfers.drain(..).collect(),
+    })
 }
 
 pub(crate) fn extract_transfers<T, U>(
     mut commands: Commands,
-    transfers: Extract<Res<PendingTransfers<T, U>>>,
+    transfers: Extract<Res<ExtractTransfers<T, U>>>,
 ) where
     T: Asset,
     U: Asset,
 {
-    commands.insert_resource(transfers.pending.clone());
+    commands.insert_resource(transfers.extract.clone());
 }
 
 pub(crate) fn prepare_transfers<T, U>(
@@ -193,7 +193,6 @@ pub(crate) fn prepare_transfers<T, U>(
 pub(crate) fn resolve_pending_transfers<T, U>(
     render_device: Res<RenderDevice>,
     transfer_receiver: Res<TransferReceiver<T, U>>,
-    mut pending_transfers: ResMut<PendingTransfers<T, U>>,
     mut assets: ResMut<Assets<U>>,
 ) where
     T: Asset,
