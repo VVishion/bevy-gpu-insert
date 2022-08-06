@@ -9,7 +9,10 @@ use bevy::{
 use wgpu::CommandEncoderDescriptor;
 
 use super::{pipeline::GenerateTerrainMeshPipeline, GenerateTerrainMeshBindGroups};
-use crate::{generate_mesh::GenerateMesh, transfer::PreparedTransfers};
+use crate::{
+    generate_mesh::GenerateMesh,
+    transfer::{PreparedTransfers, TransferSender},
+};
 
 pub mod node {
     pub const GENERATE_TERRAIN_MESH: &str = "generate_terrain_mesh";
@@ -59,6 +62,7 @@ impl render_graph::Node for GenerateTerrainMeshNode {
         //for (entity, terrain) in self.query.iter_manual(world) {}
 
         let prepared_transfers = world.resource::<PreparedTransfers<GenerateMesh, Mesh>>();
+        let transfer_sender = world.resource::<TransferSender<GenerateMesh, Mesh>>();
 
         let GenerateTerrainMeshBindGroups { bind_groups } =
             world.resource::<GenerateTerrainMeshBindGroups>();
@@ -87,12 +91,7 @@ impl render_graph::Node for GenerateTerrainMeshNode {
             }
         }
 
-        // let mut encoder = render_context
-        //     .render_device
-        //     .create_command_encoder(&CommandEncoderDescriptor::default());
-
         for transfer in prepared_transfers.prepared.iter() {
-            println!("transfer");
             render_context.command_encoder.copy_buffer_to_buffer(
                 &transfer.source,
                 transfer.source_offset,
@@ -100,10 +99,11 @@ impl render_graph::Node for GenerateTerrainMeshNode {
                 transfer.destination_offset,
                 transfer.size,
             );
-        }
 
-        // let render_queue = world.get_resource::<RenderQueue>().unwrap();
-        // render_queue.submit(std::iter::once(encoder.finish()));
+            transfer_sender
+                .try_send(transfer.destination.clone())
+                .unwrap();
+        }
 
         Ok(())
     }

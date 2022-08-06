@@ -51,8 +51,12 @@ impl Plugin for GenerateMeshPlugin {
                 collect_pending_transfers::<GenerateMesh, Mesh>,
             );
 
+        let (sender, receiver) = transfer::create_transfer_channels::<GenerateMesh, Mesh>();
+        app.insert_resource(receiver);
+
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
+                .insert_resource(sender)
                 .init_resource::<PrepareNextFrameTransfers<GenerateMesh, Mesh>>()
                 .init_resource::<Vec<GpuTransfer<GenerateMesh, Mesh>>>()
                 .init_resource::<GenerateTerrainMeshPipeline>()

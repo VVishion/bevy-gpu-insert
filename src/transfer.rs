@@ -10,9 +10,45 @@ use bevy::{
         Extract,
     },
 };
+use crossbeam_channel::{Receiver, Sender};
 use pollster::FutureExt;
+use std::ops::Deref;
 
 use crate::FromRaw;
+
+pub struct TransferSender<T, U>(pub Sender<Buffer>, PhantomData<fn(T) -> U>);
+
+pub struct TransferReceiver<T, U>(pub Receiver<Buffer>, PhantomData<fn(T) -> U>);
+
+impl<T, U> Clone for TransferSender<T, U> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), PhantomData)
+    }
+}
+
+impl<T, U> Deref for TransferSender<T, U> {
+    type Target = Sender<Buffer>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T, U> Deref for TransferReceiver<T, U> {
+    type Target = Receiver<Buffer>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+pub fn create_transfer_channels<T, U>() -> (TransferSender<T, U>, TransferReceiver<T, U>) {
+    let (s, r) = crossbeam_channel::unbounded();
+    (
+        TransferSender(s, PhantomData),
+        TransferReceiver(r, PhantomData),
+    )
+}
 
 // Could include staging buffer layout
 
@@ -156,15 +192,16 @@ pub(crate) fn prepare_transfers<T, U>(
 
 pub(crate) fn resolve_pending_transfers<T, U>(
     render_device: Res<RenderDevice>,
+    transfer_receiver: Res<TransferReceiver<T, U>>,
     mut pending_transfers: ResMut<PendingTransfers<T, U>>,
     mut assets: ResMut<Assets<U>>,
 ) where
     T: Asset,
     U: Asset + FromRaw,
 {
-    for transfer in pending_transfers.pending.drain(..) {
+    if let Ok(buffer) = transfer_receiver.try_recv() {
         async {
-            let buffer_slice = transfer.staging_buffer.slice(..);
+            let buffer_slice = buffer.slice(..);
 
             let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
             buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
@@ -175,14 +212,19 @@ pub(crate) fn resolve_pending_transfers<T, U>(
             rx.receive().await.unwrap().unwrap();
 
             {
-                assets.set(
-                    transfer.destination,
-                    U::from_raw(&buffer_slice.get_mapped_range()),
-                );
+                let u = U::from_raw(&buffer_slice.get_mapped_range());
+                // assets.set(
+                //     transfer.destination,
+                //     U::from_raw(&buffer_slice.get_mapped_range()),
+                // );
             }
 
-            transfer.staging_buffer.unmap();
+            buffer.unmap();
         }
         .block_on();
     }
+
+    // for transfer in pending_transfers.pending.drain(..) {
+
+    // }
 }
