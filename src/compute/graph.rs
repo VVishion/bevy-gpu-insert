@@ -3,15 +3,17 @@ use bevy::{
     render::{
         render_graph,
         render_resource::{CachedPipelineState, ComputePassDescriptor, PipelineCache},
-        renderer::{RenderContext, RenderQueue},
+        renderer::{RenderContext, RenderDevice, RenderQueue},
     },
 };
+use pollster::FutureExt;
 use wgpu::CommandEncoderDescriptor;
 
 use super::{pipeline::GenerateTerrainMeshPipeline, GenerateTerrainMeshBindGroups};
 use crate::{
     generate_mesh::GenerateMesh,
     transfer::{PreparedTransfers, TransferSender},
+    FromRaw,
 };
 
 pub mod node {
@@ -61,6 +63,7 @@ impl render_graph::Node for GenerateTerrainMeshNode {
     ) -> Result<(), render_graph::NodeRunError> {
         //for (entity, terrain) in self.query.iter_manual(world) {}
 
+        let render_device = world.resource::<RenderDevice>();
         let prepared_transfers = world.resource::<PreparedTransfers<GenerateMesh, Mesh>>();
         let transfer_sender = world.resource::<TransferSender<GenerateMesh, Mesh>>();
 
@@ -70,10 +73,12 @@ impl render_graph::Node for GenerateTerrainMeshNode {
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<GenerateTerrainMeshPipeline>();
 
+        let mut encoder = render_context
+            .render_device
+            .create_command_encoder(&CommandEncoderDescriptor::default());
+
         {
-            let mut pass = render_context
-                .command_encoder
-                .begin_compute_pass(&ComputePassDescriptor::default());
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
             match self.state {
                 ComputePipelineState::Loading => {}
@@ -92,17 +97,48 @@ impl render_graph::Node for GenerateTerrainMeshNode {
         }
 
         for transfer in prepared_transfers.prepared.iter() {
-            render_context.command_encoder.copy_buffer_to_buffer(
+            encoder.copy_buffer_to_buffer(
                 &transfer.source,
                 transfer.source_offset,
                 &transfer.destination,
                 transfer.destination_offset,
                 transfer.size,
             );
+        }
 
-            transfer_sender
-                .try_send(transfer.destination.clone())
-                .unwrap();
+        let render_queue = world.get_resource::<RenderQueue>().unwrap();
+        render_queue.submit(std::iter::once(encoder.finish()));
+
+        for transfer in prepared_transfers.prepared.iter() {
+            // transfer_sender
+            //     .try_send(transfer.destination.clone())
+            //     .unwrap();
+
+            let buffer = transfer.destination.clone();
+
+            async {
+                let buffer_slice = buffer.slice(..);
+
+                let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
+                buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                    result.unwrap();
+                    tx.send(()).unwrap();
+                });
+
+                render_device.poll(wgpu::Maintain::Wait);
+                rx.receive().await.unwrap();
+
+                {
+                    let u = Mesh::from_raw(&buffer_slice.get_mapped_range());
+                    // assets.set(
+                    //     transfer.destination,
+                    //     U::from_raw(&buffer_slice.get_mapped_range()),
+                    // );
+                }
+
+                buffer.unmap();
+            }
+            .block_on();
         }
 
         Ok(())
