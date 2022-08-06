@@ -6,43 +6,44 @@ use bevy::{
     render::{
         render_asset::{RenderAsset, RenderAssets},
         render_resource::{Buffer, BufferAddress},
-        renderer::RenderDevice,
         Extract,
     },
 };
 use crossbeam_channel::{Receiver, Sender};
-use pollster::FutureExt;
 use std::ops::Deref;
 
 use crate::FromRaw;
 
-pub struct TransferSender<T, U>(pub Sender<Buffer>, PhantomData<fn(T) -> U>);
+pub struct TransferSender<T, U: Asset>(pub Sender<(Handle<U>, Buffer)>, PhantomData<fn(T) -> U>);
 
-pub struct TransferReceiver<T, U>(pub Receiver<Buffer>, PhantomData<fn(T) -> U>);
+pub struct TransferReceiver<T, U: Asset>(
+    pub Receiver<(Handle<U>, Buffer)>,
+    PhantomData<fn(T) -> U>,
+);
 
-impl<T, U> Clone for TransferSender<T, U> {
+impl<T, U: Asset> Clone for TransferSender<T, U> {
     fn clone(&self) -> Self {
         Self(self.0.clone(), PhantomData)
     }
 }
 
-impl<T, U> Deref for TransferSender<T, U> {
-    type Target = Sender<Buffer>;
+impl<T, U: Asset> Deref for TransferSender<T, U> {
+    type Target = Sender<(Handle<U>, Buffer)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<T, U> Deref for TransferReceiver<T, U> {
-    type Target = Receiver<Buffer>;
+impl<T, U: Asset> Deref for TransferReceiver<T, U> {
+    type Target = Receiver<(Handle<U>, Buffer)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-pub fn create_transfer_channels<T, U>() -> (TransferSender<T, U>, TransferReceiver<T, U>) {
+pub fn create_transfer_channels<T, U: Asset>() -> (TransferSender<T, U>, TransferReceiver<T, U>) {
     let (s, r) = crossbeam_channel::unbounded();
     (
         TransferSender(s, PhantomData),
@@ -121,7 +122,7 @@ impl<T: Asset, U: Asset> Default for PrepareNextFrameTransfers<T, U> {
 }
 
 pub struct PreparedTransfers<T: Asset, U: Asset> {
-    pub prepared: Vec<GpuTransfer<T, U>>,
+    pub prepared: Vec<(Handle<U>, GpuTransfer<T, U>)>,
 }
 
 pub(crate) fn queue_extract_transfers<T, U>(
@@ -168,14 +169,17 @@ pub(crate) fn prepare_transfers<T, U>(
                 let mut offset = 0;
 
                 for transfer_descriptor in render_asset.get_transfer_descriptors() {
-                    prepared.push(GpuTransfer::<T, U> {
-                        source: transfer_descriptor.buffer,
-                        source_offset: 0,
-                        destination: transfer.staging_buffer.clone(),
-                        destination_offset: offset,
-                        size: transfer_descriptor.size,
-                        marker: PhantomData,
-                    });
+                    prepared.push((
+                        transfer.destination.clone_weak(),
+                        GpuTransfer::<T, U> {
+                            source: transfer_descriptor.buffer,
+                            source_offset: 0,
+                            destination: transfer.staging_buffer.clone(),
+                            destination_offset: offset,
+                            size: transfer_descriptor.size,
+                            marker: PhantomData,
+                        },
+                    ));
 
                     offset += transfer_descriptor.size;
                 }
@@ -191,39 +195,19 @@ pub(crate) fn prepare_transfers<T, U>(
 }
 
 pub(crate) fn resolve_pending_transfers<T, U>(
-    render_device: Res<RenderDevice>,
     transfer_receiver: Res<TransferReceiver<T, U>>,
     mut assets: ResMut<Assets<U>>,
 ) where
     T: Asset,
     U: Asset + FromRaw,
 {
-    if let Ok(buffer) = transfer_receiver.try_recv() {
-        async {
-            let buffer_slice = buffer.slice(..);
+    if let Ok((handle, buffer)) = transfer_receiver.try_recv() {
+        let buffer_slice = buffer.slice(..);
 
-            let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
-            buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                tx.send(result).unwrap();
-            });
-
-            render_device.poll(wgpu::Maintain::Wait);
-            rx.receive().await.unwrap().unwrap();
-
-            {
-                let u = U::from_raw(&buffer_slice.get_mapped_range());
-                // assets.set(
-                //     transfer.destination,
-                //     U::from_raw(&buffer_slice.get_mapped_range()),
-                // );
-            }
-
-            buffer.unmap();
+        {
+            let _ = assets.set(handle, U::from_raw(&buffer_slice.get_mapped_range()));
         }
-        .block_on();
+
+        buffer.unmap();
     }
-
-    // for transfer in pending_transfers.pending.drain(..) {
-
-    // }
 }

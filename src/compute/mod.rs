@@ -2,11 +2,10 @@ pub mod graph;
 pub mod pipeline;
 
 use bevy::{
-    asset::Asset,
     prelude::{Commands, Res},
     render::{
         render_asset::RenderAssets,
-        render_resource::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource},
+        render_resource::{BindGroup, BindGroupDescriptor, BindGroupEntry},
         renderer::RenderDevice,
     },
 };

@@ -1,6 +1,5 @@
 use bevy::{
-    asset::Asset,
-    prelude::{AddAsset, App, Assets, Bundle, CoreStage, Handle, Mesh, Plugin, Res},
+    prelude::{AddAsset, App, CoreStage, Mesh, Plugin},
     render::{
         self, render_asset::RenderAssetPlugin, render_graph::RenderGraph,
         render_resource::PrimitiveTopology, RenderApp, RenderStage,

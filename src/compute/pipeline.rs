@@ -6,7 +6,7 @@ use bevy::{
         render_resource::{
             BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
             BufferBindingType, CachedComputePipelineId, ComputePipelineDescriptor, PipelineCache,
-            SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension,
+            ShaderStages,
         },
         renderer::RenderDevice,
     },

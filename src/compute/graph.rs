@@ -1,19 +1,17 @@
 use bevy::{
-    prelude::{Entity, Mesh, QueryState, World},
+    prelude::{Mesh, World},
     render::{
         render_graph,
         render_resource::{CachedPipelineState, ComputePassDescriptor, PipelineCache},
-        renderer::{RenderContext, RenderDevice, RenderQueue},
+        renderer::{RenderContext, RenderQueue},
     },
 };
-use pollster::FutureExt;
 use wgpu::CommandEncoderDescriptor;
 
 use super::{pipeline::GenerateTerrainMeshPipeline, GenerateTerrainMeshBindGroups};
 use crate::{
     generate_mesh::GenerateMesh,
     transfer::{PreparedTransfers, TransferSender},
-    FromRaw,
 };
 
 pub mod node {
@@ -61,9 +59,6 @@ impl render_graph::Node for GenerateTerrainMeshNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        //for (entity, terrain) in self.query.iter_manual(world) {}
-
-        let render_device = world.resource::<RenderDevice>();
         let prepared_transfers = world.resource::<PreparedTransfers<GenerateMesh, Mesh>>();
         let transfer_sender = world.resource::<TransferSender<GenerateMesh, Mesh>>();
 
@@ -96,7 +91,7 @@ impl render_graph::Node for GenerateTerrainMeshNode {
             }
         }
 
-        for transfer in prepared_transfers.prepared.iter() {
+        for (_, transfer) in prepared_transfers.prepared.iter() {
             encoder.copy_buffer_to_buffer(
                 &transfer.source,
                 transfer.source_offset,
@@ -106,39 +101,20 @@ impl render_graph::Node for GenerateTerrainMeshNode {
             );
         }
 
-        let render_queue = world.get_resource::<RenderQueue>().unwrap();
+        let render_queue = world.resource::<RenderQueue>();
         render_queue.submit(std::iter::once(encoder.finish()));
 
-        for transfer in prepared_transfers.prepared.iter() {
-            // transfer_sender
-            //     .try_send(transfer.destination.clone())
-            //     .unwrap();
-
+        for (handle, transfer) in prepared_transfers.prepared.iter() {
+            let handle = handle.clone_weak();
             let buffer = transfer.destination.clone();
+            let transfer_sender = transfer_sender.clone();
 
-            async {
-                let buffer_slice = buffer.slice(..);
+            let buffer_slice = transfer.destination.slice(..);
 
-                let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
-                buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                    result.unwrap();
-                    tx.send(()).unwrap();
-                });
-
-                render_device.poll(wgpu::Maintain::Wait);
-                rx.receive().await.unwrap();
-
-                {
-                    let u = Mesh::from_raw(&buffer_slice.get_mapped_range());
-                    // assets.set(
-                    //     transfer.destination,
-                    //     U::from_raw(&buffer_slice.get_mapped_range()),
-                    // );
-                }
-
-                buffer.unmap();
-            }
-            .block_on();
+            buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                result.unwrap();
+                transfer_sender.try_send((handle, buffer)).unwrap();
+            });
         }
 
         Ok(())
