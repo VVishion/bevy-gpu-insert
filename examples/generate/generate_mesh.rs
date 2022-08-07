@@ -8,7 +8,7 @@ use bevy::{
     },
 };
 
-use crate::{TransferDescriptor, Transferable};
+use bevy_generate_mesh_on_gpu::{TransferDescriptor, Transferable};
 
 #[derive(Clone, TypeUuid)]
 #[uuid = "cd1cb232-71b1-4b63-878e-6730732911d1"]

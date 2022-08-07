@@ -69,6 +69,20 @@ impl<T: Asset, U: Asset> Clone for Transfer<T, U> {
     }
 }
 
+pub struct CopyBuffer<T: Asset, U: Asset> {
+    pub source: Buffer,
+    pub source_offset: u64,
+    pub destination: Buffer,
+    pub destination_offset: u64,
+    pub size: u64,
+    marker: PhantomData<fn(T) -> U>,
+}
+
+pub struct MapBuffer<T: Asset, U: Asset> {
+    pub buffer: Buffer,
+    marker: PhantomData<fn(T) -> U>,
+}
+
 pub struct GpuTransfer<T: Asset, U: Asset> {
     pub source: Buffer,
     pub source_offset: u64,
