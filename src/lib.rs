@@ -20,10 +20,13 @@ pub mod transfer;
 
 pub use from_raw::FromRaw;
 use transfer::{
-    extract_transfers, prepare_transfers, queue_extract_transfers, resolve_pending_transfers,
-    PrepareNextFrameTransfers,
+    extract_transfers, extract_unmaps, prepare_transfers, queue_extract_transfers,
+    resolve_pending_transfers,
 };
-pub use transfer::{GpuTransfer, Transfer, TransferDescriptor, Transferable};
+pub use transfer::{
+    BufferCopies, BufferMaps, MappedBuffers, PrepareNextFrameTransfers, Transfer,
+    TransferDescriptor, Transferable,
+};
 
 pub struct TransferPlugin<T, U>
 where
@@ -56,7 +59,6 @@ where
     fn build(&self, app: &mut App) {
         app.init_resource::<Vec<Transfer<T, U>>>()
             // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
-            // could also be in First after marking?
             .add_system_to_stage(CoreStage::First, resolve_pending_transfers::<T, U>)
             .add_system_to_stage(CoreStage::Last, queue_extract_transfers::<T, U>);
 
@@ -66,9 +68,12 @@ where
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .insert_resource(sender)
+                .init_resource::<MappedBuffers>()
                 .init_resource::<PrepareNextFrameTransfers<T, U>>()
-                .init_resource::<Vec<GpuTransfer<T, U>>>()
+                .init_resource::<BufferCopies<T, U>>()
+                .init_resource::<BufferMaps<T, U>>()
                 .add_system_to_stage(RenderStage::Extract, extract_transfers::<T, U>)
+                .add_system_to_stage(RenderStage::Extract, extract_unmaps::<T, U>)
                 .add_system_to_stage(RenderStage::Prepare, prepare_transfers::<T, U>);
         }
     }

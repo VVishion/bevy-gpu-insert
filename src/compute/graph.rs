@@ -11,7 +11,7 @@ use bevy::{
 };
 use wgpu::CommandEncoderDescriptor;
 
-use crate::transfer::{PreparedTransfers, TransferSender};
+use crate::transfer::{BufferCopies, BufferMaps, TransferSender};
 
 pub mod node {
     pub const TRANSFER: &str = "transfer";
@@ -36,33 +36,34 @@ where
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let prepared_transfers = world.resource::<PreparedTransfers<T, U>>();
+        let copies = world.resource::<BufferCopies<T, U>>();
+        let BufferMaps { maps } = world.resource::<BufferMaps<T, U>>();
         let transfer_sender = world.resource::<TransferSender<T, U>>();
 
         let mut encoder = render_context
             .render_device
             .create_command_encoder(&CommandEncoderDescriptor::default());
 
-        for (_, transfer) in prepared_transfers.prepared.iter() {
+        for copy in copies.iter() {
             encoder.copy_buffer_to_buffer(
-                &transfer.source,
-                transfer.source_offset,
-                &transfer.destination,
-                transfer.destination_offset,
-                transfer.size,
+                &copy.source,
+                copy.source_offset,
+                &copy.destination,
+                copy.destination_offset,
+                copy.size,
             );
         }
 
         let render_queue = world.resource::<RenderQueue>();
         render_queue.submit(std::iter::once(encoder.finish()));
 
-        for (handle, transfer) in prepared_transfers.prepared.iter() {
+        for (handle, map) in maps.iter() {
             // some transfers may copy to the same staging buffer, so the same staging buffer is mapped multiple times
             let handle = handle.clone_weak();
-            let buffer = transfer.destination.clone();
+            let buffer = map.buffer.clone();
             let transfer_sender = transfer_sender.clone();
 
-            let buffer_slice = transfer.destination.slice(..);
+            let buffer_slice = map.buffer.slice(..);
 
             buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
                 result.unwrap();

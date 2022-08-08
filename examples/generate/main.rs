@@ -1,36 +1,25 @@
 use bevy::asset::HandleId;
 use bevy::reflect::TypeUuid;
+use bevy::render::camera::Projection;
 use bevy::render::render_asset::RenderAssetPlugin;
 use bevy::render::render_graph::RenderGraph;
 use bevy::render::render_resource::{BufferDescriptor, BufferUsages};
 use bevy::render::renderer::RenderDevice;
 use bevy::render::{RenderApp, RenderStage};
 use bevy::{prelude::*, render};
-use bevy_generate_mesh_on_gpu::{FromRaw, Transfer, TransferNode, TransferPlugin};
+use bevy_generate_mesh_on_gpu::{Transfer, TransferNode, TransferPlugin};
 use compute::graph::GenerateTerrainMeshNode;
 use compute::pipeline::GenerateTerrainMeshPipeline;
 use compute::{queue_generate_mesh_bind_groups, GenerateTerrainMeshBindGroups};
-use wgpu::PrimitiveTopology;
+use into_render_asset::IntoRenderAssetPlugin;
 
 mod compute;
 mod generate_mesh;
+mod generated_mesh;
+pub mod into_render_asset;
 
 use generate_mesh::GenerateMesh;
-
-#[derive(TypeUuid)]
-#[uuid = "2b6378c3-e473-499f-99b6-7172e6eb0d5a"]
-struct GeneratedMesh;
-
-impl FromRaw for GeneratedMesh {
-    fn from_raw(data: &[u8]) -> Self {
-        let data: Vec<_> = data
-            .chunks_exact(4)
-            .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
-            .collect();
-        println!("{data:?}");
-        GeneratedMesh
-    }
-}
+use generated_mesh::{extract_generated_mesh, GeneratedMesh};
 
 struct GenerateTerrainMeshPlugin;
 
@@ -38,6 +27,7 @@ impl Plugin for GenerateTerrainMeshPlugin {
     fn build(&self, app: &mut App) {
         app.add_asset::<GenerateMesh>()
             .add_asset::<GeneratedMesh>()
+            .add_plugin(IntoRenderAssetPlugin::<GeneratedMesh>::default())
             .add_plugin(RenderAssetPlugin::<GenerateMesh>::default())
             .add_plugin(TransferPlugin::<GenerateMesh, GeneratedMesh>::default());
 
@@ -45,6 +35,7 @@ impl Plugin for GenerateTerrainMeshPlugin {
             render_app
                 .init_resource::<GenerateTerrainMeshPipeline>()
                 .init_resource::<GenerateTerrainMeshBindGroups>()
+                .add_system_to_stage(RenderStage::Extract, extract_generated_mesh)
                 .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_bind_groups);
 
             let generate_terrain_mesh_node = GenerateTerrainMeshNode::new(&mut render_app.world);
@@ -95,7 +86,7 @@ fn setup(
     let staging_buffer = render_device.create_buffer(&BufferDescriptor {
         label: Some("staging buffer"),
         usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-        size: 8 * std::mem::size_of::<f32>() as u64 * 4 * 4,
+        size: 8 * std::mem::size_of::<f32>() as u64 * 5 * 5,
         mapped_at_creation: false,
     });
 
@@ -112,7 +103,19 @@ fn setup(
 
     transfers.push(transfer);
 
-    commands.spawn_bundle((source, destination));
+    commands.spawn_bundle((
+        source,
+        destination,
+        materials.add(StandardMaterial {
+            base_color: Color::GREEN,
+            // cull_mode: None,
+            ..default()
+        }),
+        Transform::default(),
+        GlobalTransform::default(),
+        Visibility::default(),
+        ComputedVisibility::default(),
+    ));
 
     const HALF_SIZE: f32 = 10.0;
     commands.spawn_bundle(DirectionalLightBundle {
@@ -151,8 +154,9 @@ fn setup(
     });
 
     commands.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(2.0, 1.0, -2.0)
+        transform: Transform::from_xyz(0.0, -1.0, -2.0)
             .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+        //projection: Projection::Orthographic(OrthographicProjection::default()),
         ..default()
     });
 }

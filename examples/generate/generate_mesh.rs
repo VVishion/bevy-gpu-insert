@@ -32,7 +32,7 @@ impl RenderAsset for GenerateMesh {
         extracted_asset: Self::ExtractedAsset,
         render_device: &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
-        let size = 8 * std::mem::size_of::<f32>() as u64 * 4 * 4;
+        let size = 8 * std::mem::size_of::<f32>() as u64 * 5 * 5;
 
         let buffer = render_device.create_buffer(&BufferDescriptor {
             usage: BufferUsages::VERTEX

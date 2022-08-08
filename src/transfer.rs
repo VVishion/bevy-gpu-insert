@@ -5,9 +5,10 @@ use bevy::{
     prelude::{Assets, Commands, Handle, Res, ResMut},
     render::{
         render_asset::{RenderAsset, RenderAssets},
-        render_resource::{Buffer, BufferAddress},
+        render_resource::{Buffer, BufferAddress, BufferId},
         Extract,
     },
+    utils::HashSet,
 };
 use crossbeam_channel::{Receiver, Sender};
 use std::ops::Deref;
@@ -69,7 +70,7 @@ impl<T: Asset, U: Asset> Clone for Transfer<T, U> {
     }
 }
 
-pub struct CopyBuffer<T: Asset, U: Asset> {
+pub struct BufferCopy<T: Asset, U: Asset> {
     pub source: Buffer,
     pub source_offset: u64,
     pub destination: Buffer,
@@ -78,17 +79,8 @@ pub struct CopyBuffer<T: Asset, U: Asset> {
     marker: PhantomData<fn(T) -> U>,
 }
 
-pub struct MapBuffer<T: Asset, U: Asset> {
+pub struct BufferMap<T: Asset, U: Asset> {
     pub buffer: Buffer,
-    marker: PhantomData<fn(T) -> U>,
-}
-
-pub struct GpuTransfer<T: Asset, U: Asset> {
-    pub source: Buffer,
-    pub source_offset: u64,
-    pub destination: Buffer,
-    pub destination_offset: u64,
-    pub size: u64,
     marker: PhantomData<fn(T) -> U>,
 }
 
@@ -135,8 +127,27 @@ impl<T: Asset, U: Asset> Default for PrepareNextFrameTransfers<T, U> {
     }
 }
 
-pub struct PreparedTransfers<T: Asset, U: Asset> {
-    pub prepared: Vec<(Handle<U>, GpuTransfer<T, U>)>,
+pub type BufferCopies<T, U> = Vec<BufferCopy<T, U>>;
+
+pub struct BufferMaps<T: Asset, U: Asset> {
+    pub maps: Vec<(Handle<U>, BufferMap<T, U>)>,
+}
+
+#[derive(Default)]
+pub struct BufferUnmaps<T, U> {
+    pub buffers: Vec<BufferId>,
+    marker: PhantomData<fn(T) -> U>,
+}
+
+#[derive(Default)]
+pub struct MappedBuffers {
+    pub buffers: HashSet<BufferId>,
+}
+
+impl<T: Asset, U: Asset> Default for BufferMaps<T, U> {
+    fn default() -> Self {
+        Self { maps: Vec::new() }
+    }
 }
 
 pub(crate) fn queue_extract_transfers<T, U>(
@@ -163,6 +174,7 @@ pub(crate) fn extract_transfers<T, U>(
 
 pub(crate) fn prepare_transfers<T, U>(
     mut commands: Commands,
+    mut mapped_buffers: ResMut<MappedBuffers>,
     mut transfers: ResMut<Vec<Transfer<T, U>>>,
     mut prepare_next_frame_transfers: ResMut<PrepareNextFrameTransfers<T, U>>,
     render_assets: Res<RenderAssets<T>>,
@@ -172,49 +184,63 @@ pub(crate) fn prepare_transfers<T, U>(
     U: Asset,
 {
     let mut prepare_next_frame = Vec::new();
-    let mut prepared = Vec::new();
+    let mut copies = Vec::new();
+    let mut maps = Vec::new();
 
     for transfer in transfers
         .drain(..)
         .chain(prepare_next_frame_transfers.transfers.drain(..))
     {
+        let buffer_id = transfer.staging_buffer.id();
+
         match render_assets.get(&transfer.source) {
-            Some(render_asset) => {
+            Some(render_asset) if !mapped_buffers.buffers.contains(&buffer_id) => {
+                mapped_buffers.buffers.insert(transfer.staging_buffer.id());
+
                 let mut offset = 0;
 
                 for transfer_descriptor in render_asset.get_transfer_descriptors() {
-                    prepared.push((
-                        transfer.destination.clone_weak(),
-                        GpuTransfer::<T, U> {
-                            source: transfer_descriptor.buffer,
-                            source_offset: 0,
-                            destination: transfer.staging_buffer.clone(),
-                            destination_offset: offset,
-                            size: transfer_descriptor.size,
-                            marker: PhantomData,
-                        },
-                    ));
+                    copies.push(BufferCopy::<T, U> {
+                        source: transfer_descriptor.buffer,
+                        source_offset: 0,
+                        destination: transfer.staging_buffer.clone(),
+                        destination_offset: offset,
+                        size: transfer_descriptor.size,
+                        marker: PhantomData,
+                    });
 
                     offset += transfer_descriptor.size;
                 }
+
+                maps.push((
+                    transfer.destination.clone_weak(),
+                    BufferMap::<T, U> {
+                        buffer: transfer.staging_buffer.clone(),
+                        marker: PhantomData,
+                    },
+                ));
             }
-            None => prepare_next_frame.push(transfer),
+            _ => prepare_next_frame.push(transfer),
         }
     }
 
     commands.insert_resource(PrepareNextFrameTransfers {
         transfers: prepare_next_frame,
     });
-    commands.insert_resource(PreparedTransfers { prepared });
+    commands.insert_resource(copies);
+    commands.insert_resource(BufferMaps { maps });
 }
 
 pub(crate) fn resolve_pending_transfers<T, U>(
+    mut commands: Commands,
     transfer_receiver: Res<TransferReceiver<T, U>>,
     mut assets: ResMut<Assets<U>>,
 ) where
     T: Asset,
     U: Asset + FromRaw,
 {
+    let mut unmapped_buffers = Vec::new();
+
     if let Ok((handle, buffer)) = transfer_receiver.try_recv() {
         let buffer_slice = buffer.slice(..);
 
@@ -223,5 +249,20 @@ pub(crate) fn resolve_pending_transfers<T, U>(
         }
 
         buffer.unmap();
+        unmapped_buffers.push(buffer.id());
+    }
+
+    commands.insert_resource(BufferUnmaps::<T, U> {
+        buffers: unmapped_buffers,
+        marker: PhantomData,
+    });
+}
+
+pub(crate) fn extract_unmaps<T, U>(
+    unmapped_buffers: Extract<Res<BufferUnmaps<T, U>>>,
+    mut mapped_buffers: ResMut<MappedBuffers>,
+) {
+    for buffer_id in unmapped_buffers.buffers.iter() {
+        mapped_buffers.buffers.remove(buffer_id);
     }
 }

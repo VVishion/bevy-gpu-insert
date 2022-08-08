@@ -11,6 +11,7 @@ futures-intrusive = "0.4.0"
 wgpu = "0.13"
 pollster = "0.2.5"
 crossbeam-channel = "0.5"
+itertools = "0.10"
 
 [[example]]
 name = "generate"
