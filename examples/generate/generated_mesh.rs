@@ -40,20 +40,19 @@ impl FromRaw for GeneratedMesh {
             uvs.push([chunk[6], chunk[7]]);
         }
 
-        // indices must be winded the other way
-        {
-            let subdivisions = (positions.len() as f32).sqrt() as u32 - 1;
+        let subdivisions = (positions.len() as f32).sqrt() as u32 - 1;
 
+        {
             let index = |x, y| x + y * (subdivisions + 1);
 
             for (x, y) in itertools::iproduct!(0..subdivisions, 0..subdivisions) {
+                indices.push(index(x, y + 1));
+                indices.push(index(x + 1, y));
                 indices.push(index(x, y));
-                indices.push(index(x + 1, y));
-                indices.push(index(x, y + 1));
 
-                indices.push(index(x + 1, y));
-                indices.push(index(x + 1, y + 1));
                 indices.push(index(x, y + 1));
+                indices.push(index(x + 1, y + 1));
+                indices.push(index(x + 1, y));
             }
         }
 

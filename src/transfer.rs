@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use bevy::{
     asset::Asset,
-    prelude::{Assets, Commands, Handle, Res, ResMut},
+    prelude::{Assets, Commands, Deref, DerefMut, Handle, Res, ResMut},
     render::{
         render_asset::{RenderAsset, RenderAssets},
         render_resource::{Buffer, BufferAddress, BufferId},
@@ -103,26 +103,18 @@ impl<T: Asset, U: Asset> Transfer<T, U> {
         }
     }
 }
-pub struct ExtractTransfers<T: Asset, U: Asset> {
-    pub extract: Vec<Transfer<T, U>>,
-}
 
-impl<T: Asset, U: Asset> Default for ExtractTransfers<T, U> {
-    fn default() -> Self {
-        Self {
-            extract: Vec::new(),
-        }
-    }
-}
+#[derive(Deref, DerefMut, Clone)]
+pub struct Queue<T>(pub Vec<T>);
 
 pub struct PrepareNextFrameTransfers<T: Asset, U: Asset> {
-    pub transfers: Vec<Transfer<T, U>>,
+    pub transfers: Queue<Transfer<T, U>>,
 }
 
 impl<T: Asset, U: Asset> Default for PrepareNextFrameTransfers<T, U> {
     fn default() -> Self {
         Self {
-            transfers: Vec::new(),
+            transfers: Queue(Vec::new()),
         }
     }
 }
@@ -157,25 +149,23 @@ pub(crate) fn queue_extract_transfers<T, U>(
     T: Asset,
     U: Asset,
 {
-    commands.insert_resource(ExtractTransfers {
-        extract: transfers.drain(..).collect(),
-    })
+    commands.insert_resource(Queue(transfers.drain(..).collect()));
 }
 
 pub(crate) fn extract_transfers<T, U>(
     mut commands: Commands,
-    transfers: Extract<Res<ExtractTransfers<T, U>>>,
+    transfers: Extract<Res<Queue<Transfer<T, U>>>>,
 ) where
     T: Asset,
     U: Asset,
 {
-    commands.insert_resource(transfers.extract.clone());
+    commands.insert_resource(transfers.clone());
 }
 
 pub(crate) fn prepare_transfers<T, U>(
     mut commands: Commands,
     mut mapped_buffers: ResMut<MappedBuffers>,
-    mut transfers: ResMut<Vec<Transfer<T, U>>>,
+    mut transfers: ResMut<Queue<Transfer<T, U>>>,
     mut prepare_next_frame_transfers: ResMut<PrepareNextFrameTransfers<T, U>>,
     render_assets: Res<RenderAssets<T>>,
 ) where
@@ -225,7 +215,7 @@ pub(crate) fn prepare_transfers<T, U>(
     }
 
     commands.insert_resource(PrepareNextFrameTransfers {
-        transfers: prepare_next_frame,
+        transfers: Queue(prepare_next_frame),
     });
     commands.insert_resource(copies);
     commands.insert_resource(BufferMaps { maps });
@@ -241,7 +231,7 @@ pub(crate) fn resolve_pending_transfers<T, U>(
 {
     let mut unmapped_buffers = Vec::new();
 
-    if let Ok((handle, buffer)) = transfer_receiver.try_recv() {
+    for (handle, buffer) in transfer_receiver.try_iter() {
         let buffer_slice = buffer.slice(..);
 
         {
