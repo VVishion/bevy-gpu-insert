@@ -8,7 +8,7 @@ use bevy::{
         render_resource::{Buffer, BufferAddress, BufferId},
         Extract,
     },
-    utils::HashSet,
+    utils::{HashMap, HashSet},
 };
 use crossbeam_channel::{Receiver, Sender};
 use std::ops::Deref;
@@ -52,13 +52,22 @@ pub fn create_transfer_channels<T, U: Asset>() -> (TransferSender<T, U>, Transfe
     )
 }
 
-// Could include staging buffer layout
-
 pub struct Transfer<T: Asset, U: Asset> {
     pub source: Handle<T>,
     pub destination: Handle<U>,
     pub staging_buffer: Buffer,
 }
+
+pub struct GpuTransfer<T: Asset, U: Asset> {
+    pub source: Buffer,
+    pub source_offset: u64,
+    pub destination: Buffer,
+    pub destination_offset: u64,
+    pub size: u64,
+    marker: PhantomData<fn(T) -> U>,
+}
+
+pub type PreparedTransfers<T, U> = Vec<(Handle<U>, GpuTransfer<T, U>)>;
 
 impl<T: Asset, U: Asset> Clone for Transfer<T, U> {
     fn clone(&self) -> Self {
@@ -70,26 +79,11 @@ impl<T: Asset, U: Asset> Clone for Transfer<T, U> {
     }
 }
 
-pub struct BufferCopy<T: Asset, U: Asset> {
-    pub source: Buffer,
-    pub source_offset: u64,
-    pub destination: Buffer,
-    pub destination_offset: u64,
-    pub size: u64,
-    marker: PhantomData<fn(T) -> U>,
-}
-
-pub struct BufferMap<T: Asset, U: Asset> {
-    pub buffer: Buffer,
-    marker: PhantomData<fn(T) -> U>,
-}
-
 pub trait Transferable {
     fn get_transfer_descriptors(&self) -> Vec<TransferDescriptor>;
 }
 
 pub struct TransferDescriptor {
-    // maybe put slice here
     pub buffer: Buffer,
     pub size: BufferAddress,
 }
@@ -119,12 +113,6 @@ impl<T: Asset, U: Asset> Default for PrepareNextFrameTransfers<T, U> {
     }
 }
 
-pub type BufferCopies<T, U> = Vec<BufferCopy<T, U>>;
-
-pub struct BufferMaps<T: Asset, U: Asset> {
-    pub maps: Vec<(Handle<U>, BufferMap<T, U>)>,
-}
-
 #[derive(Default)]
 pub struct BufferUnmaps<T, U> {
     pub buffers: Vec<BufferId>,
@@ -134,12 +122,6 @@ pub struct BufferUnmaps<T, U> {
 #[derive(Default)]
 pub struct MappedBuffers {
     pub buffers: HashSet<BufferId>,
-}
-
-impl<T: Asset, U: Asset> Default for BufferMaps<T, U> {
-    fn default() -> Self {
-        Self { maps: Vec::new() }
-    }
 }
 
 pub(crate) fn queue_extract_transfers<T, U>(
@@ -168,14 +150,14 @@ pub(crate) fn prepare_transfers<T, U>(
     mut transfers: ResMut<Queue<Transfer<T, U>>>,
     mut prepare_next_frame_transfers: ResMut<PrepareNextFrameTransfers<T, U>>,
     render_assets: Res<RenderAssets<T>>,
+    //param: StaticSystemParam<<R as RenderAsset>::Param>,
 ) where
     T: RenderAsset,
     T::PreparedAsset: Transferable,
     U: Asset,
 {
     let mut prepare_next_frame = Vec::new();
-    let mut copies = Vec::new();
-    let mut maps = Vec::new();
+    let mut prepared_transfers = Vec::new();
 
     for transfer in transfers
         .drain(..)
@@ -184,31 +166,23 @@ pub(crate) fn prepare_transfers<T, U>(
         let buffer_id = transfer.staging_buffer.id();
 
         match render_assets.get(&transfer.source) {
+            // what if buffer was mapped this frame? we can still copy
             Some(render_asset) if !mapped_buffers.buffers.contains(&buffer_id) => {
                 mapped_buffers.buffers.insert(transfer.staging_buffer.id());
 
-                let mut offset = 0;
-
                 for transfer_descriptor in render_asset.get_transfer_descriptors() {
-                    copies.push(BufferCopy::<T, U> {
-                        source: transfer_descriptor.buffer,
-                        source_offset: 0,
-                        destination: transfer.staging_buffer.clone(),
-                        destination_offset: offset,
-                        size: transfer_descriptor.size,
-                        marker: PhantomData,
-                    });
-
-                    offset += transfer_descriptor.size;
+                    prepared_transfers.push((
+                        transfer.destination.clone_weak(),
+                        GpuTransfer::<T, U> {
+                            source: transfer_descriptor.buffer,
+                            source_offset: 0,
+                            destination: transfer.staging_buffer.clone(),
+                            destination_offset: 0,
+                            size: transfer_descriptor.size,
+                            marker: PhantomData,
+                        },
+                    ));
                 }
-
-                maps.push((
-                    transfer.destination.clone_weak(),
-                    BufferMap::<T, U> {
-                        buffer: transfer.staging_buffer.clone(),
-                        marker: PhantomData,
-                    },
-                ));
             }
             _ => prepare_next_frame.push(transfer),
         }
@@ -217,14 +191,14 @@ pub(crate) fn prepare_transfers<T, U>(
     commands.insert_resource(PrepareNextFrameTransfers {
         transfers: Queue(prepare_next_frame),
     });
-    commands.insert_resource(copies);
-    commands.insert_resource(BufferMaps { maps });
+    commands.insert_resource(prepared_transfers);
 }
 
 pub(crate) fn resolve_pending_transfers<T, U>(
     mut commands: Commands,
     transfer_receiver: Res<TransferReceiver<T, U>>,
     mut assets: ResMut<Assets<U>>,
+    //param: StaticSystemParam<<R as RenderAsset>::Param>,
 ) where
     T: Asset,
     U: Asset + FromRaw,

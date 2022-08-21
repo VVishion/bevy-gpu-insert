@@ -2,14 +2,8 @@ use std::marker::PhantomData;
 
 use bevy::{
     asset::Asset,
-    prelude::{AddAsset, App, CoreStage, Mesh, Plugin},
-    render::{
-        self,
-        render_asset::{RenderAsset, RenderAssetPlugin},
-        render_graph::RenderGraph,
-        render_resource::PrimitiveTopology,
-        RenderApp, RenderStage,
-    },
+    prelude::{App, CoreStage, Plugin},
+    render::{render_asset::RenderAsset, RenderApp, RenderStage},
 };
 pub use compute::graph::TransferNode;
 
@@ -24,8 +18,8 @@ use transfer::{
     resolve_pending_transfers,
 };
 pub use transfer::{
-    BufferCopies, BufferMaps, MappedBuffers, PrepareNextFrameTransfers, Transfer,
-    TransferDescriptor, Transferable,
+    GpuTransfer, MappedBuffers, PrepareNextFrameTransfers, Transfer, TransferDescriptor,
+    Transferable,
 };
 
 pub struct TransferPlugin<T, U>
@@ -70,8 +64,7 @@ where
                 .insert_resource(sender)
                 .init_resource::<MappedBuffers>()
                 .init_resource::<PrepareNextFrameTransfers<T, U>>()
-                .init_resource::<BufferCopies<T, U>>()
-                .init_resource::<BufferMaps<T, U>>()
+                .init_resource::<Vec<GpuTransfer<T, U>>>()
                 .add_system_to_stage(RenderStage::Extract, extract_transfers::<T, U>)
                 .add_system_to_stage(RenderStage::Extract, extract_unmaps::<T, U>)
                 .add_system_to_stage(RenderStage::Prepare, prepare_transfers::<T, U>);

@@ -1,6 +1,4 @@
 use bevy::asset::HandleId;
-use bevy::reflect::TypeUuid;
-use bevy::render::camera::Projection;
 use bevy::render::render_asset::RenderAssetPlugin;
 use bevy::render::render_graph::RenderGraph;
 use bevy::render::render_resource::{BufferDescriptor, BufferUsages};
@@ -38,7 +36,7 @@ impl Plugin for GenerateTerrainMeshPlugin {
                 .add_system_to_stage(RenderStage::Extract, extract_generated_mesh)
                 .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_bind_groups);
 
-            let generate_terrain_mesh_node = GenerateTerrainMeshNode::new(&mut render_app.world);
+            let generate_terrain_mesh_node = GenerateTerrainMeshNode::new();
             let transfer_node = TransferNode::<GenerateMesh, GeneratedMesh>::default();
 
             let mut render_graph = render_app.world.resource_mut::<RenderGraph>();

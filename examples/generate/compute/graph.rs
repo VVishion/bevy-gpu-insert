@@ -25,7 +25,7 @@ pub(crate) struct GenerateTerrainMeshNode {
 }
 
 impl GenerateTerrainMeshNode {
-    pub fn new(world: &mut World) -> Self {
+    pub fn new() -> Self {
         Self {
             state: ComputePipelineState::Loading,
         }
