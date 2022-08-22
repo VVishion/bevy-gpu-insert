@@ -5,7 +5,7 @@ use bevy::render::render_resource::{BufferDescriptor, BufferUsages};
 use bevy::render::renderer::RenderDevice;
 use bevy::render::{RenderApp, RenderStage};
 use bevy::{prelude::*, render};
-use bevy_generate_mesh_on_gpu::{Transfer, TransferNode, TransferPlugin};
+use bevy_transfer::{Transfer, TransferNode, TransferPlugin};
 use compute::graph::GenerateMeshNode;
 use compute::pipeline::GenerateMeshPipeline;
 use compute::{

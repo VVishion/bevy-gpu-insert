@@ -12,7 +12,7 @@ use bevy::{
         Extract,
     },
 };
-use bevy_generate_mesh_on_gpu::FromTransfer;
+use bevy_transfer::FromTransfer;
 
 #[derive(TypeUuid, Clone, Deref)]
 #[uuid = "2b6378c3-e473-499f-99b6-7172e6eb0d5a"]

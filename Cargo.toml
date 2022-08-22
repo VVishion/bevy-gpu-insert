@@ -1,5 +1,5 @@
 [package]
-name = "bevy-generate-mesh-on-gpu"
+name = "bevy-transfer"
 version = "0.1.0"
 edition = "2021"
 

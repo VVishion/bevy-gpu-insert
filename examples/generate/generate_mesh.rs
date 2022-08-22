@@ -9,7 +9,7 @@ use bevy::{
     },
 };
 
-use bevy_generate_mesh_on_gpu::{IntoTransfer, TransferDescriptor};
+use bevy_transfer::{IntoTransfer, TransferDescriptor};
 
 use crate::{generated_mesh::GeneratedMesh, VertexData};
 
