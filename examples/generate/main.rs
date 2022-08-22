@@ -21,9 +21,9 @@ pub mod into_render_asset;
 use generate_mesh::GenerateMesh;
 use generated_mesh::{extract_generated_mesh, GeneratedMesh};
 
-struct GenerateTerrainMeshPlugin;
+struct GenerateMeshPlugin;
 
-impl Plugin for GenerateTerrainMeshPlugin {
+impl Plugin for GenerateMeshPlugin {
     fn build(&self, app: &mut App) {
         app.add_asset::<GenerateMesh>()
             .add_asset::<GeneratedMesh>()
@@ -73,7 +73,7 @@ pub struct VertexData;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(GenerateTerrainMeshPlugin)
+        .add_plugin(GenerateMeshPlugin)
         .add_startup_system(setup)
         .run();
 }
