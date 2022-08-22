@@ -12,12 +12,12 @@ use bevy::{
     },
 };
 
-pub struct GenerateTerrainMeshPipeline {
+pub struct GenerateMeshPipeline {
     pub bind_group_layout: BindGroupLayout,
     pub pipeline: CachedComputePipelineId,
 }
 
-impl FromWorld for GenerateTerrainMeshPipeline {
+impl FromWorld for GenerateMeshPipeline {
     fn from_world(world: &mut World) -> Self {
         let bind_group_layout =
             world
@@ -25,16 +25,16 @@ impl FromWorld for GenerateTerrainMeshPipeline {
                 .create_bind_group_layout(&BindGroupLayoutDescriptor {
                     label: None,
                     entries: &[
-                        // BindGroupLayoutEntry {
-                        //     binding: 0,
-                        //     visibility: ShaderStages::COMPUTE,
-                        //     ty: BindingType::Buffer {
-                        //         ty: BufferBindingType::Storage { read_only: true },
-                        //         has_dynamic_offset: false,
-                        //         min_binding_size: None,
-                        //     },
-                        //     count: None,
-                        // },
+                        BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: ShaderStages::COMPUTE,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                         BindGroupLayoutEntry {
                             binding: 1,
                             visibility: ShaderStages::COMPUTE,
@@ -57,7 +57,7 @@ impl FromWorld for GenerateTerrainMeshPipeline {
             entry_point: Cow::from("main"),
         });
 
-        GenerateTerrainMeshPipeline {
+        GenerateMeshPipeline {
             bind_group_layout,
             pipeline,
         }

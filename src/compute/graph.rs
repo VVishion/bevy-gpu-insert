@@ -2,10 +2,9 @@ use std::marker::PhantomData;
 
 use bevy::{
     asset::Asset,
-    prelude::{Mesh, World},
+    prelude::World,
     render::{
         render_graph,
-        render_resource::{CachedPipelineState, ComputePassDescriptor, PipelineCache},
         renderer::{RenderContext, RenderQueue},
     },
 };
@@ -17,18 +16,19 @@ pub mod node {
     pub const TRANSFER: &str = "transfer";
 }
 
-pub struct TransferNode<T, U>(PhantomData<fn(T) -> U>);
+pub struct TransferNode<T, U, V>(PhantomData<fn(T, V) -> U>);
 
-impl<T, U> Default for TransferNode<T, U> {
+impl<T, U, V> Default for TransferNode<T, U, V> {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<T, U> render_graph::Node for TransferNode<T, U>
+impl<T, U, V> render_graph::Node for TransferNode<T, U, V>
 where
     T: Asset,
     U: Asset,
+    V: 'static,
 {
     fn run(
         &self,
@@ -36,8 +36,8 @@ where
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let prepared_transfers = world.resource::<PreparedTransfers<T, U>>();
-        let transfer_sender = world.resource::<TransferSender<T, U>>();
+        let prepared_transfers = world.resource::<PreparedTransfers<T, U, V>>();
+        let transfer_sender = world.resource::<TransferSender<T, U, V>>();
 
         let mut encoder = render_context
             .render_device

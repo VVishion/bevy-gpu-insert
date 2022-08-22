@@ -8,34 +8,33 @@ use bevy::{
 pub use compute::graph::TransferNode;
 
 pub mod compute;
-mod from_raw;
-mod mirror_handle;
 pub mod transfer;
 
-pub use from_raw::FromRaw;
 use transfer::{
     extract_transfers, extract_unmaps, prepare_transfers, queue_extract_transfers,
     resolve_pending_transfers,
 };
 pub use transfer::{
-    GpuTransfer, MappedBuffers, PrepareNextFrameTransfers, Transfer, TransferDescriptor,
-    Transferable,
+    FromTransfer, GpuTransfer, IntoTransfer, MappedBuffers, PrepareNextFrameTransfers, Transfer,
+    TransferDescriptor,
 };
 
-pub struct TransferPlugin<T, U>
+pub struct TransferPlugin<T, U, V>
 where
     T: RenderAsset,
-    T::PreparedAsset: Transferable,
-    U: Asset + FromRaw,
+    T::PreparedAsset: IntoTransfer<U, V>,
+    U: Asset + FromTransfer<T, V>,
+    V: 'static,
 {
-    marker: PhantomData<fn(T) -> U>,
+    marker: PhantomData<fn(T, V) -> U>,
 }
 
-impl<T, U> Default for TransferPlugin<T, U>
+impl<T, U, V> Default for TransferPlugin<T, U, V>
 where
     T: RenderAsset,
-    T::PreparedAsset: Transferable,
-    U: Asset + FromRaw,
+    T::PreparedAsset: IntoTransfer<U, V>,
+    U: Asset + FromTransfer<T, V>,
+    V: 'static,
 {
     fn default() -> Self {
         Self {
@@ -44,30 +43,31 @@ where
     }
 }
 
-impl<T, U> Plugin for TransferPlugin<T, U>
+impl<T, U, V> Plugin for TransferPlugin<T, U, V>
 where
     T: RenderAsset,
-    T::PreparedAsset: Transferable,
-    U: Asset + FromRaw,
+    T::PreparedAsset: IntoTransfer<U, V>,
+    U: Asset + FromTransfer<T, V>,
+    V: 'static,
 {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Vec<Transfer<T, U>>>()
+        app.init_resource::<Vec<Transfer<T, U, V>>>()
             // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
-            .add_system_to_stage(CoreStage::First, resolve_pending_transfers::<T, U>)
-            .add_system_to_stage(CoreStage::Last, queue_extract_transfers::<T, U>);
+            .add_system_to_stage(CoreStage::First, resolve_pending_transfers::<T, U, V>)
+            .add_system_to_stage(CoreStage::Last, queue_extract_transfers::<T, U, V>);
 
-        let (sender, receiver) = transfer::create_transfer_channels::<T, U>();
+        let (sender, receiver) = transfer::create_transfer_channels::<T, U, V>();
         app.insert_resource(receiver);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .insert_resource(sender)
                 .init_resource::<MappedBuffers>()
-                .init_resource::<PrepareNextFrameTransfers<T, U>>()
-                .init_resource::<Vec<GpuTransfer<T, U>>>()
-                .add_system_to_stage(RenderStage::Extract, extract_transfers::<T, U>)
-                .add_system_to_stage(RenderStage::Extract, extract_unmaps::<T, U>)
-                .add_system_to_stage(RenderStage::Prepare, prepare_transfers::<T, U>);
+                .init_resource::<PrepareNextFrameTransfers<T, U, V>>()
+                .init_resource::<Vec<GpuTransfer<T, U, V>>>()
+                .add_system_to_stage(RenderStage::Extract, extract_transfers::<T, U, V>)
+                .add_system_to_stage(RenderStage::Extract, extract_unmaps::<T, U, V>)
+                .add_system_to_stage(RenderStage::Prepare, prepare_transfers::<T, U, V>);
         }
     }
 }

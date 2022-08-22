@@ -1,4 +1,4 @@
-use crate::into_render_asset::IntoRenderAsset;
+use crate::{generate_mesh::GenerateMesh, into_render_asset::IntoRenderAsset, VertexData};
 use bevy::{
     ecs::system::{lifetimeless::SRes, SystemParamItem},
     pbr::MeshUniform,
@@ -12,14 +12,16 @@ use bevy::{
         Extract,
     },
 };
-use bevy_generate_mesh_on_gpu::FromRaw;
+use bevy_generate_mesh_on_gpu::FromTransfer;
 
 #[derive(TypeUuid, Clone, Deref)]
 #[uuid = "2b6378c3-e473-499f-99b6-7172e6eb0d5a"]
 pub struct GeneratedMesh(pub Mesh);
 
-impl FromRaw for GeneratedMesh {
-    fn from_raw(data: &[u8]) -> Self {
+impl FromTransfer<GenerateMesh, VertexData> for GeneratedMesh {
+    //type Param = ();
+
+    fn from(data: &[u8]) -> Result<Self, PrepareAssetError<GeneratedMesh>> {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
         let data: Vec<_> = data
@@ -35,7 +37,6 @@ impl FromRaw for GeneratedMesh {
         for chunk in data.chunks_exact(8) {
             let position = [chunk[0], chunk[1], chunk[2]];
             positions.push(position);
-            println!("{position:?}");
             normals.push([chunk[3], chunk[4], chunk[5]]);
             uvs.push([chunk[6], chunk[7]]);
         }
@@ -63,7 +64,7 @@ impl FromRaw for GeneratedMesh {
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
         mesh.set_indices(Some(indices));
 
-        GeneratedMesh(mesh)
+        Ok(GeneratedMesh(mesh))
     }
 }
 

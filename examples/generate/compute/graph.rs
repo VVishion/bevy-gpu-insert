@@ -1,5 +1,5 @@
 use bevy::{
-    prelude::{Mesh, World},
+    prelude::World,
     render::{
         render_graph,
         render_resource::{CachedPipelineState, ComputePassDescriptor, PipelineCache},
@@ -8,11 +8,10 @@ use bevy::{
 };
 use wgpu::CommandEncoderDescriptor;
 
-use super::{pipeline::GenerateTerrainMeshPipeline, GenerateTerrainMeshBindGroups};
-use crate::generate_mesh::GenerateMesh;
+use super::{pipeline::GenerateMeshPipeline, GenerateMeshBindGroups};
 
 pub mod node {
-    pub const GENERATE_TERRAIN_MESH: &str = "generate_terrain_mesh";
+    pub const GENERATE_MESH: &str = "generate_mesh";
 }
 
 enum ComputePipelineState {
@@ -20,11 +19,11 @@ enum ComputePipelineState {
     Ready,
 }
 
-pub(crate) struct GenerateTerrainMeshNode {
+pub(crate) struct GenerateMeshNode {
     state: ComputePipelineState,
 }
 
-impl GenerateTerrainMeshNode {
+impl GenerateMeshNode {
     pub fn new() -> Self {
         Self {
             state: ComputePipelineState::Loading,
@@ -32,9 +31,9 @@ impl GenerateTerrainMeshNode {
     }
 }
 
-impl render_graph::Node for GenerateTerrainMeshNode {
+impl render_graph::Node for GenerateMeshNode {
     fn update(&mut self, world: &mut World) {
-        let pipeline = world.resource::<GenerateTerrainMeshPipeline>();
+        let pipeline = world.resource::<GenerateMeshPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
         // if the corresponding pipeline has loaded, transition to the next stage
@@ -56,11 +55,10 @@ impl render_graph::Node for GenerateTerrainMeshNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let GenerateTerrainMeshBindGroups { bind_groups } =
-            world.resource::<GenerateTerrainMeshBindGroups>();
+        let GenerateMeshBindGroups { bind_groups } = world.resource::<GenerateMeshBindGroups>();
 
         let pipeline_cache = world.resource::<PipelineCache>();
-        let pipeline = world.resource::<GenerateTerrainMeshPipeline>();
+        let pipeline = world.resource::<GenerateMeshPipeline>();
 
         let mut encoder = render_context
             .render_device
@@ -77,9 +75,9 @@ impl render_graph::Node for GenerateTerrainMeshNode {
                         .unwrap();
                     pass.set_pipeline(pipeline);
 
-                    for bind_group in bind_groups.iter() {
+                    for (subdivisions, bind_group) in bind_groups.iter() {
                         pass.set_bind_group(0, bind_group, &[]);
-                        pass.dispatch_workgroups(1, 1, 1);
+                        pass.dispatch_workgroups(*subdivisions, *subdivisions, 1);
                     }
                 }
             }
