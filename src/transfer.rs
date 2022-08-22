@@ -9,7 +9,7 @@ use bevy::{
         render_resource::{Buffer, BufferAddress, BufferId},
         Extract,
     },
-    utils::{HashMap, HashSet},
+    utils::HashSet,
 };
 use crossbeam_channel::{Receiver, Sender};
 use std::ops::Deref;
@@ -90,11 +90,11 @@ where
     Self: Asset,
     Self: Sized,
 {
-    //type Param: SystemParam;
+    type Param: SystemParam;
 
     fn from(
         data: &[u8],
-        //param: &mut SystemParamItem<Self::Param>,
+        param: &mut SystemParamItem<Self::Param>,
     ) -> Result<Self, PrepareAssetError<Self>>;
 }
 
@@ -107,12 +107,24 @@ pub trait IntoTransfer<U, V> {
     fn into(&self) -> TransferDescriptor;
 }
 
-pub struct CompletedTransfer<'a, U>
+pub struct ResolveNextFrameTransfers<T, U, V>
 where
     U: Asset,
 {
-    pub handle: Handle<U>,
-    pub data: &'a [u8],
+    pub transfers: Vec<(Handle<U>, Buffer)>,
+    marker: PhantomData<fn(T, V) -> U>,
+}
+
+impl<T, U, V> Default for ResolveNextFrameTransfers<T, U, V>
+where
+    U: Asset,
+{
+    fn default() -> Self {
+        Self {
+            transfers: Default::default(),
+            marker: PhantomData,
+        }
+    }
 }
 
 impl<T: Asset, U: Asset, V> Transfer<T, U, V> {
@@ -225,37 +237,41 @@ pub(crate) fn prepare_transfers<T, U, V>(
 pub(crate) fn resolve_pending_transfers<T, U, V>(
     mut commands: Commands,
     transfer_receiver: Res<TransferReceiver<T, U, V>>,
+    mut resolve_next_frame: ResMut<ResolveNextFrameTransfers<T, U, V>>,
     mut assets: ResMut<Assets<U>>,
-    //param: StaticSystemParam<U::Param>,
+    param: StaticSystemParam<U::Param>,
 ) where
     T: Asset,
     U: Asset + FromTransfer<T, V>,
     V: 'static,
 {
-    //let mut param = param.into_inner();
+    let mut param = param.into_inner();
     let mut unmapped_buffers = Vec::new();
+    let mut queued_transfers = std::mem::take(&mut resolve_next_frame.transfers);
 
-    for (handle, buffer) in transfer_receiver.try_iter() {
-        // what if buffer is bigger than copied data
+    let mut resolve = |handle, buffer: Buffer| {
         let buffer_slice = buffer.slice(..);
 
-        {
-            // let completed = CompletedTransfer {
-            //     handle,
-            //     data: &buffer_slice.get_mapped_range(),
-            // };
+        let result = { U::from(&buffer_slice.get_mapped_range(), &mut param) };
 
-            // !!!
-            let asset = match U::from(&buffer_slice.get_mapped_range()) {
-                Ok(asset) => asset,
-                _ => panic!("try completing next frame"),
-            };
-
-            let _ = assets.set(handle, asset);
+        match result {
+            Ok(asset) => {
+                let _ = assets.set(handle, asset);
+                buffer.unmap();
+                unmapped_buffers.push(buffer.id());
+            }
+            Err(PrepareAssetError::RetryNextUpdate(_)) => {
+                resolve_next_frame.transfers.push((handle, buffer));
+            }
         }
+    };
 
-        buffer.unmap();
-        unmapped_buffers.push(buffer.id());
+    for (handle, buffer) in queued_transfers.drain(..) {
+        resolve(handle, buffer);
+    }
+
+    for (handle, buffer) in transfer_receiver.try_iter() {
+        resolve(handle, buffer);
     }
 
     commands.insert_resource(BufferUnmaps::<T, U, V> {

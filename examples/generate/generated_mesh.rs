@@ -19,9 +19,12 @@ use bevy_generate_mesh_on_gpu::FromTransfer;
 pub struct GeneratedMesh(pub Mesh);
 
 impl FromTransfer<GenerateMesh, VertexData> for GeneratedMesh {
-    //type Param = ();
+    type Param = ();
 
-    fn from(data: &[u8]) -> Result<Self, PrepareAssetError<GeneratedMesh>> {
+    fn from(
+        data: &[u8],
+        _param: &mut Self::Param,
+    ) -> Result<Self, PrepareAssetError<GeneratedMesh>> {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
         let data: Vec<_> = data

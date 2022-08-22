@@ -15,8 +15,8 @@ use transfer::{
     resolve_pending_transfers,
 };
 pub use transfer::{
-    FromTransfer, GpuTransfer, IntoTransfer, MappedBuffers, PrepareNextFrameTransfers, Transfer,
-    TransferDescriptor,
+    FromTransfer, GpuTransfer, IntoTransfer, MappedBuffers, PrepareNextFrameTransfers,
+    ResolveNextFrameTransfers, Transfer, TransferDescriptor,
 };
 
 pub struct TransferPlugin<T, U, V>
@@ -52,6 +52,7 @@ where
 {
     fn build(&self, app: &mut App) {
         app.init_resource::<Vec<Transfer<T, U, V>>>()
+            .init_resource::<ResolveNextFrameTransfers<T, U, V>>()
             // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
             .add_system_to_stage(CoreStage::First, resolve_pending_transfers::<T, U, V>)
             .add_system_to_stage(CoreStage::Last, queue_extract_transfers::<T, U, V>);
