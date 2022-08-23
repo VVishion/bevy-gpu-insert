@@ -1,8 +1,6 @@
 use bevy::asset::HandleId;
 use bevy::render::render_asset::RenderAssetPlugin;
 use bevy::render::render_graph::RenderGraph;
-use bevy::render::render_resource::{BufferDescriptor, BufferUsages};
-use bevy::render::renderer::RenderDevice;
 use bevy::render::{RenderApp, RenderStage};
 use bevy::{prelude::*, render};
 use bevy_transfer::{Transfer, TransferNode, TransferPlugin};
@@ -80,35 +78,24 @@ fn main() {
 
 fn setup(
     mut commands: Commands,
-    render_device: Res<RenderDevice>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut generate_meshes: ResMut<Assets<GenerateMesh>>,
     mut transfers: ResMut<Vec<Transfer<GenerateMesh, GeneratedMesh, VertexData>>>,
     generated_meshes: Res<Assets<GeneratedMesh>>,
 ) {
     let subdivisions = 20;
-
-    // create the staging buffer in the render world. it will be sent to the main world.
-    let staging_buffer = render_device.create_buffer(&BufferDescriptor {
-        label: Some("staging buffer"),
-        usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-        size: 8
-            * std::mem::size_of::<f32>() as u64
-            * (subdivisions + 1) as u64
-            * (subdivisions + 1) as u64,
-        mapped_at_creation: false,
-    });
+    let size = 8
+        * std::mem::size_of::<f32>() as u64
+        * (subdivisions + 1) as u64
+        * (subdivisions + 1) as u64;
 
     let source = generate_meshes.add(GenerateMesh { subdivisions });
     let id = HandleId::random::<GeneratedMesh>();
     let mut destination = Handle::weak(id);
     destination.make_strong(&generated_meshes);
 
-    let transfer = Transfer::<_, _, VertexData>::new(
-        source.clone_weak(),
-        destination.clone_weak(),
-        staging_buffer,
-    );
+    let transfer =
+        Transfer::<_, _, VertexData>::new(source.clone_weak(), destination.clone_weak(), size);
 
     transfers.push(transfer);
 

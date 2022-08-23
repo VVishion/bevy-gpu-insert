@@ -6,10 +6,10 @@ use bevy::{
     prelude::{Assets, Commands, Deref, DerefMut, Handle, Res, ResMut},
     render::{
         render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
-        render_resource::{Buffer, BufferAddress, BufferId},
+        render_resource::{Buffer, BufferAddress, BufferDescriptor, BufferUsages},
+        renderer::RenderDevice,
         Extract,
     },
-    utils::HashSet,
 };
 use crossbeam_channel::{Receiver, Sender};
 use std::ops::Deref;
@@ -58,7 +58,7 @@ pub fn create_transfer_channels<T, U: Asset, V>(
 pub struct Transfer<T: Asset, U: Asset, V> {
     pub source: Handle<T>,
     pub destination: Handle<U>,
-    pub staging_buffer: Buffer,
+    pub size: u64,
     marker: PhantomData<fn() -> V>,
 }
 
@@ -78,7 +78,7 @@ impl<T: Asset, U: Asset, V> Clone for Transfer<T, U, V> {
         Self {
             source: self.source.clone_weak(),
             destination: self.destination.clone_weak(),
-            staging_buffer: self.staging_buffer.clone(),
+            size: self.size,
             marker: PhantomData,
         }
     }
@@ -128,11 +128,11 @@ where
 }
 
 impl<T: Asset, U: Asset, V> Transfer<T, U, V> {
-    pub fn new(source: Handle<T>, destination: Handle<U>, staging_buffer: Buffer) -> Self {
+    pub fn new(source: Handle<T>, destination: Handle<U>, size: u64) -> Self {
         Self {
             source,
             destination,
-            staging_buffer,
+            size,
             marker: PhantomData,
         }
     }
@@ -151,17 +151,6 @@ impl<T: Asset, U: Asset, V> Default for PrepareNextFrameTransfers<T, U, V> {
             transfers: Queue(Vec::new()),
         }
     }
-}
-
-#[derive(Default)]
-pub struct BufferUnmaps<T, U, V> {
-    pub buffers: Vec<BufferId>,
-    marker: PhantomData<fn(T, V) -> U>,
-}
-
-#[derive(Default)]
-pub struct MappedBuffers {
-    pub buffers: HashSet<BufferId>,
 }
 
 pub(crate) fn queue_extract_transfers<T, U, V>(
@@ -187,7 +176,7 @@ pub(crate) fn extract_transfers<T, U, V>(
 
 pub(crate) fn prepare_transfers<T, U, V>(
     mut commands: Commands,
-    mut mapped_buffers: ResMut<MappedBuffers>,
+    render_device: Res<RenderDevice>,
     mut transfers: ResMut<Queue<Transfer<T, U, V>>>,
     mut prepare_next_frame_transfers: ResMut<PrepareNextFrameTransfers<T, U, V>>,
     render_assets: Res<RenderAssets<T>>,
@@ -205,11 +194,14 @@ pub(crate) fn prepare_transfers<T, U, V>(
         .drain(..)
         .chain(prepare_next_frame_transfers.transfers.drain(..))
     {
-        let buffer_id = transfer.staging_buffer.id();
-
         match render_assets.get(&transfer.source) {
-            Some(render_asset) if !mapped_buffers.buffers.contains(&buffer_id) => {
-                mapped_buffers.buffers.insert(transfer.staging_buffer.id());
+            Some(render_asset) => {
+                let staging_buffer = render_device.create_buffer(&BufferDescriptor {
+                    label: Some("staging buffer"),
+                    usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+                    size: transfer.size,
+                    mapped_at_creation: false,
+                });
 
                 let transfer_descriptor = IntoTransfer::into(render_asset);
                 prepared_transfers.push((
@@ -217,7 +209,7 @@ pub(crate) fn prepare_transfers<T, U, V>(
                     GpuTransfer::<T, U, V> {
                         source: transfer_descriptor.buffer,
                         source_offset: 0,
-                        destination: transfer.staging_buffer.clone(),
+                        destination: staging_buffer,
                         destination_offset: 0,
                         size: transfer_descriptor.size,
                         marker: PhantomData,
@@ -272,19 +264,5 @@ pub(crate) fn resolve_pending_transfers<T, U, V>(
 
     for (handle, buffer) in transfer_receiver.try_iter() {
         resolve(handle, buffer);
-    }
-
-    commands.insert_resource(BufferUnmaps::<T, U, V> {
-        buffers: unmapped_buffers,
-        marker: PhantomData,
-    });
-}
-
-pub(crate) fn extract_unmaps<T, U, V>(
-    unmapped_buffers: Extract<Res<BufferUnmaps<T, U, V>>>,
-    mut mapped_buffers: ResMut<MappedBuffers>,
-) {
-    for buffer_id in unmapped_buffers.buffers.iter() {
-        mapped_buffers.buffers.remove(buffer_id);
     }
 }

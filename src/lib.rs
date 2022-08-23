@@ -11,12 +11,11 @@ pub mod compute;
 pub mod transfer;
 
 use transfer::{
-    extract_transfers, extract_unmaps, prepare_transfers, queue_extract_transfers,
-    resolve_pending_transfers,
+    extract_transfers, prepare_transfers, queue_extract_transfers, resolve_pending_transfers,
 };
 pub use transfer::{
-    FromTransfer, GpuTransfer, IntoTransfer, MappedBuffers, PrepareNextFrameTransfers,
-    ResolveNextFrameTransfers, Transfer, TransferDescriptor,
+    FromTransfer, GpuTransfer, IntoTransfer, PrepareNextFrameTransfers, ResolveNextFrameTransfers,
+    Transfer, TransferDescriptor,
 };
 
 pub struct TransferPlugin<T, U, V>
@@ -63,11 +62,9 @@ where
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .insert_resource(sender)
-                .init_resource::<MappedBuffers>()
                 .init_resource::<PrepareNextFrameTransfers<T, U, V>>()
                 .init_resource::<Vec<GpuTransfer<T, U, V>>>()
                 .add_system_to_stage(RenderStage::Extract, extract_transfers::<T, U, V>)
-                .add_system_to_stage(RenderStage::Extract, extract_unmaps::<T, U, V>)
                 .add_system_to_stage(RenderStage::Prepare, prepare_transfers::<T, U, V>);
         }
     }

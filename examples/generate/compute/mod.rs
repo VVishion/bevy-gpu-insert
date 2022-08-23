@@ -21,7 +21,6 @@ pub struct GenerateMeshBindGroups {
 }
 
 pub struct ChangedGenerateMeshes {
-    // mesh_handles: Vec<Handle<TerrainMesh>>,
     handles: Vec<Handle<GenerateMesh>>,
 }
 
@@ -29,7 +28,6 @@ pub struct ChangedGenerateMeshes {
 pub(crate) fn extract_generate_mesh_changes(
     mut commands: Commands,
     mut mesh_events: Extract<EventReader<AssetEvent<GenerateMesh>>>,
-    //mut image_events: Extract<EventReader<AssetEvent<Image>>>,
 ) {
     let mut handles = Vec::new();
 
@@ -49,7 +47,6 @@ pub(crate) fn queue_generate_mesh_bind_groups(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     pipeline: Res<GenerateMeshPipeline>,
-    // query: Query<(&Terrain, &Handle<Mesh>)>,
     changed_meshes: Res<ChangedGenerateMeshes>,
     gpu_generate_meshes: Res<RenderAssets<GenerateMesh>>,
 ) {
@@ -78,34 +75,3 @@ pub(crate) fn queue_generate_mesh_bind_groups(
 
     commands.insert_resource(GenerateMeshBindGroups { bind_groups });
 }
-
-// only queue if changed
-// pub fn queue_generate_mesh_bind_groups(
-//     mut commands: Commands,
-//     render_device: Res<RenderDevice>,
-//     pipeline: Res<GenerateTerrainMeshPipeline>,
-//     gpu_generate_meshes: Res<RenderAssets<GenerateMesh>>,
-// ) {
-//     let mut bind_groups = Vec::new();
-
-//     for (_, gpu_generate_mesh) in gpu_generate_meshes.iter() {
-//         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-//             entries: &[
-//                 BindGroupEntry {
-//                     binding: 0,
-//                     resource: gpu_generate_mesh.subdivisions_buffer.as_entire_binding(),
-//                 },
-//                 BindGroupEntry {
-//                     binding: 1,
-//                     resource: gpu_generate_mesh.buffer.as_entire_binding(),
-//                 },
-//             ],
-//             label: Some("generate mesh bind group"),
-//             layout: &pipeline.bind_group_layout,
-//         });
-
-//         bind_groups.push((gpu_generate_mesh.subdivisions, bind_group));
-//     }
-
-//     commands.insert_resource(GenerateTerrainMeshBindGroups { bind_groups });
-// }
