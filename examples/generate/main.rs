@@ -84,18 +84,13 @@ fn setup(
     generated_meshes: Res<Assets<GeneratedMesh>>,
 ) {
     let subdivisions = 20;
-    let size = 8
-        * std::mem::size_of::<f32>() as u64
-        * (subdivisions + 1) as u64
-        * (subdivisions + 1) as u64;
 
     let source = generate_meshes.add(GenerateMesh { subdivisions });
     let id = HandleId::random::<GeneratedMesh>();
     let mut destination = Handle::weak(id);
     destination.make_strong(&generated_meshes);
 
-    let transfer =
-        Transfer::<_, _, VertexData>::new(source.clone_weak(), destination.clone_weak(), size);
+    let transfer = Transfer::<_, _, VertexData>::new(source.clone_weak(), destination.clone_weak());
 
     transfers.push(transfer);
 

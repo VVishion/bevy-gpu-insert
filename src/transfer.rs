@@ -58,7 +58,6 @@ pub fn create_transfer_channels<T, U: Asset, V>(
 pub struct Transfer<T: Asset, U: Asset, V> {
     pub source: Handle<T>,
     pub destination: Handle<U>,
-    pub size: u64,
     marker: PhantomData<fn() -> V>,
 }
 
@@ -78,7 +77,6 @@ impl<T: Asset, U: Asset, V> Clone for Transfer<T, U, V> {
         Self {
             source: self.source.clone_weak(),
             destination: self.destination.clone_weak(),
-            size: self.size,
             marker: PhantomData,
         }
     }
@@ -128,11 +126,10 @@ where
 }
 
 impl<T: Asset, U: Asset, V> Transfer<T, U, V> {
-    pub fn new(source: Handle<T>, destination: Handle<U>, size: u64) -> Self {
+    pub fn new(source: Handle<T>, destination: Handle<U>) -> Self {
         Self {
             source,
             destination,
-            size,
             marker: PhantomData,
         }
     }
@@ -196,14 +193,15 @@ pub(crate) fn prepare_transfers<T, U, V>(
     {
         match render_assets.get(&transfer.source) {
             Some(render_asset) => {
+                let transfer_descriptor = IntoTransfer::into(render_asset);
+
                 let staging_buffer = render_device.create_buffer(&BufferDescriptor {
                     label: Some("staging buffer"),
                     usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-                    size: transfer.size,
+                    size: transfer_descriptor.size,
                     mapped_at_creation: false,
                 });
 
-                let transfer_descriptor = IntoTransfer::into(render_asset);
                 prepared_transfers.push((
                     transfer.destination,
                     GpuTransfer::<T, U, V> {
@@ -227,7 +225,6 @@ pub(crate) fn prepare_transfers<T, U, V>(
 }
 
 pub(crate) fn resolve_pending_transfers<T, U, V>(
-    mut commands: Commands,
     transfer_receiver: Res<TransferReceiver<T, U, V>>,
     mut resolve_next_frame: ResMut<ResolveNextFrameTransfers<T, U, V>>,
     mut assets: ResMut<Assets<U>>,
