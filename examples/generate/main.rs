@@ -27,7 +27,7 @@ impl Plugin for GenerateMeshPlugin {
             .add_asset::<GeneratedMesh>()
             .add_plugin(IntoRenderAssetPlugin::<GeneratedMesh>::default())
             .add_plugin(RenderAssetPlugin::<GenerateMesh>::default())
-            .add_plugin(TransferPlugin::<GenerateMesh, GeneratedMesh, VertexData>::default());
+            .add_plugin(TransferPlugin::<GenerateMesh, GeneratedMesh, Vertices>::default());
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
@@ -38,7 +38,7 @@ impl Plugin for GenerateMeshPlugin {
                 .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_bind_groups);
 
             let generate_terrain_mesh_node = GenerateMeshNode::new();
-            let transfer_node = TransferNode::<GenerateMesh, GeneratedMesh, VertexData>::default();
+            let transfer_node = TransferNode::<GenerateMesh, GeneratedMesh, Vertices>::default();
 
             let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
@@ -66,7 +66,7 @@ impl Plugin for GenerateMeshPlugin {
     }
 }
 
-pub struct VertexData;
+pub struct Vertices;
 
 fn main() {
     App::new()
@@ -80,7 +80,7 @@ fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut generate_meshes: ResMut<Assets<GenerateMesh>>,
-    mut transfers: ResMut<Vec<Transfer<GenerateMesh, GeneratedMesh, VertexData>>>,
+    mut transfers: ResMut<Vec<Transfer<GenerateMesh, GeneratedMesh, Vertices>>>,
     generated_meshes: Res<Assets<GeneratedMesh>>,
 ) {
     let subdivisions = 20;
@@ -90,7 +90,7 @@ fn setup(
     let mut destination = Handle::weak(id);
     destination.make_strong(&generated_meshes);
 
-    let transfer = Transfer::<_, _, VertexData>::new(source.clone_weak(), destination.clone_weak());
+    let transfer = Transfer::<_, _, Vertices>::new(source.clone_weak(), destination.clone_weak());
 
     transfers.push(transfer);
 

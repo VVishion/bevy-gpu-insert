@@ -10,18 +10,16 @@ pub use compute::graph::TransferNode;
 pub mod compute;
 pub mod transfer;
 
-use transfer::{
-    extract_transfers, prepare_transfers, queue_extract_transfers, resolve_pending_transfers,
-};
+use transfer::{clear_transfers, extract_transfers, prepare_transfers, resolve_pending_transfers};
 pub use transfer::{
     FromTransfer, GpuTransfer, IntoTransfer, PrepareNextFrameTransfers, ResolveNextFrameTransfers,
-    Transfer, TransferDescriptor,
+    Transfer,
 };
 
 pub struct TransferPlugin<T, U, V>
 where
     T: RenderAsset,
-    T::PreparedAsset: IntoTransfer<U, V>,
+    T: IntoTransfer<U, V>,
     U: Asset + FromTransfer<T, V>,
     V: 'static,
 {
@@ -31,7 +29,7 @@ where
 impl<T, U, V> Default for TransferPlugin<T, U, V>
 where
     T: RenderAsset,
-    T::PreparedAsset: IntoTransfer<U, V>,
+    T: IntoTransfer<U, V>,
     U: Asset + FromTransfer<T, V>,
     V: 'static,
 {
@@ -45,16 +43,15 @@ where
 impl<T, U, V> Plugin for TransferPlugin<T, U, V>
 where
     T: RenderAsset,
-    T::PreparedAsset: IntoTransfer<U, V>,
+    T: IntoTransfer<U, V>,
     U: Asset + FromTransfer<T, V>,
     V: 'static,
 {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Vec<Transfer<T, U, V>>>()
-            .init_resource::<ResolveNextFrameTransfers<T, U, V>>()
+        app.init_resource::<ResolveNextFrameTransfers<T, U, V>>()
             // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
             .add_system_to_stage(CoreStage::First, resolve_pending_transfers::<T, U, V>)
-            .add_system_to_stage(CoreStage::Last, queue_extract_transfers::<T, U, V>);
+            .add_system_to_stage(CoreStage::First, clear_transfers::<T, U, V>);
 
         let (sender, receiver) = transfer::create_transfer_channels::<T, U, V>();
         app.insert_resource(receiver);

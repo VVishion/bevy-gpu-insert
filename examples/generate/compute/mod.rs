@@ -9,7 +9,9 @@ use bevy::{
         renderer::RenderDevice,
         Extract,
     },
+    utils::HashSet,
 };
+use bevy_transfer::GpuTransfer;
 
 use crate::generate_mesh::GenerateMesh;
 
@@ -29,19 +31,40 @@ pub(crate) fn extract_generate_mesh_changes(
     mut commands: Commands,
     mut mesh_events: Extract<EventReader<AssetEvent<GenerateMesh>>>,
 ) {
-    let mut handles = Vec::new();
+    let mut changed = HashSet::default();
 
     for event in mesh_events.iter() {
         match event {
             AssetEvent::Created { handle } | AssetEvent::Modified { handle } => {
-                handles.push(handle.clone_weak());
+                changed.insert(handle.clone_weak());
             }
             _ => {}
         }
     }
 
+    let handles = changed.drain().collect();
     commands.insert_resource(ChangedGenerateMeshes { handles });
 }
+
+// pub(crate) fn extract_generate_mesh_transfers(
+//     mut mesh_events: Extract<EventReader<AssetEvent<GenerateMesh>>>,
+//     mut transfers: ResMut<Vec<Transfer<GenerateMesh, GeneratedMesh, Vertices>>>,
+// ) {
+//     let mut changed = HashSet::default();
+
+//     for event in mesh_events.iter() {
+//         match event {
+//             AssetEvent::Created { handle } | AssetEvent::Modified { handle } => {
+//                 changed.insert(handle.clone_weak());
+//             }
+//             _ => {}
+//         }
+//     }
+
+//     let handles = changed.drain().collect();
+
+//     handles.map()
+// }
 
 pub(crate) fn queue_generate_mesh_bind_groups(
     mut commands: Commands,

@@ -56,8 +56,8 @@ where
         let render_queue = world.resource::<RenderQueue>();
         render_queue.submit(std::iter::once(encoder.finish()));
 
-        for (handle, gpu_transfer) in prepared_transfers.iter() {
-            let handle = handle.clone_weak();
+        for (transfer, gpu_transfer) in prepared_transfers.iter() {
+            let handle = transfer.destination.clone_weak();
             let buffer = gpu_transfer.destination.clone();
             let transfer_sender = transfer_sender.clone();
 

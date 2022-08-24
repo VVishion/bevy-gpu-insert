@@ -6,8 +6,7 @@ use bevy::{
     prelude::{Assets, Commands, Deref, DerefMut, Handle, Res, ResMut},
     render::{
         render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
-        render_resource::{Buffer, BufferAddress, BufferDescriptor, BufferUsages},
-        renderer::RenderDevice,
+        render_resource::Buffer,
         Extract,
     },
 };
@@ -67,10 +66,10 @@ pub struct GpuTransfer<T: Asset, U: Asset, V> {
     pub destination: Buffer,
     pub destination_offset: u64,
     pub size: u64,
-    marker: PhantomData<fn(T, V) -> U>,
+    pub marker: PhantomData<fn(T, V) -> U>,
 }
 
-pub type PreparedTransfers<T, U, V> = Vec<(Handle<U>, GpuTransfer<T, U, V>)>;
+pub type PreparedTransfers<T, U, V> = Vec<(Transfer<T, U, V>, GpuTransfer<T, U, V>)>;
 
 impl<T: Asset, U: Asset, V> Clone for Transfer<T, U, V> {
     fn clone(&self) -> Self {
@@ -93,16 +92,22 @@ where
     fn from(
         data: &[u8],
         param: &mut SystemParamItem<Self::Param>,
-    ) -> Result<Self, PrepareAssetError<Self>>;
+    ) -> Result<Self, PrepareAssetError<()>>;
 }
 
-pub struct TransferDescriptor {
-    pub buffer: Buffer,
-    pub size: BufferAddress,
-}
+pub trait IntoTransfer<U, V>
+where
+    Self: RenderAsset,
+    Self: Sized,
+    U: Asset,
+{
+    type Param: SystemParam;
 
-pub trait IntoTransfer<U, V> {
-    fn into(&self) -> TransferDescriptor;
+    fn prepare_transfer(
+        prepared_asset: &<Self as RenderAsset>::PreparedAsset,
+        transfer: &Transfer<Self, U, V>,
+        param: &mut SystemParamItem<<Self as IntoTransfer<U, V>>::Param>,
+    ) -> Result<GpuTransfer<Self, U, V>, PrepareAssetError<Transfer<Self, U, V>>>;
 }
 
 pub struct ResolveNextFrameTransfers<T, U, V>
@@ -135,35 +140,30 @@ impl<T: Asset, U: Asset, V> Transfer<T, U, V> {
     }
 }
 
-#[derive(Deref, DerefMut, Clone)]
-pub struct Queue<T>(pub Vec<T>);
-
 pub struct PrepareNextFrameTransfers<T: Asset, U: Asset, V> {
-    pub transfers: Queue<Transfer<T, U, V>>,
+    pub transfers: Vec<Transfer<T, U, V>>,
 }
 
 impl<T: Asset, U: Asset, V> Default for PrepareNextFrameTransfers<T, U, V> {
     fn default() -> Self {
         Self {
-            transfers: Queue(Vec::new()),
+            transfers: Vec::new(),
         }
     }
 }
 
-pub(crate) fn queue_extract_transfers<T, U, V>(
-    mut commands: Commands,
-    mut transfers: ResMut<Vec<Transfer<T, U, V>>>,
-) where
+pub(crate) fn clear_transfers<T, U, V>(mut commands: Commands)
+where
     T: Asset,
     U: Asset,
     V: 'static,
 {
-    commands.insert_resource(Queue(transfers.drain(..).collect()));
+    commands.insert_resource(Vec::<Transfer<T, U, V>>::new());
 }
 
 pub(crate) fn extract_transfers<T, U, V>(
     mut commands: Commands,
-    transfers: Extract<Res<Queue<Transfer<T, U, V>>>>,
+    transfers: Extract<Res<Vec<Transfer<T, U, V>>>>,
 ) where
     T: Asset,
     U: Asset,
@@ -173,17 +173,17 @@ pub(crate) fn extract_transfers<T, U, V>(
 
 pub(crate) fn prepare_transfers<T, U, V>(
     mut commands: Commands,
-    render_device: Res<RenderDevice>,
-    mut transfers: ResMut<Queue<Transfer<T, U, V>>>,
+    mut transfers: ResMut<Vec<Transfer<T, U, V>>>,
     mut prepare_next_frame_transfers: ResMut<PrepareNextFrameTransfers<T, U, V>>,
     render_assets: Res<RenderAssets<T>>,
-    //param: StaticSystemParam<<R as RenderAsset>::Param>,
+    param: StaticSystemParam<<T as IntoTransfer<U, V>>::Param>,
 ) where
     T: RenderAsset,
-    T::PreparedAsset: IntoTransfer<U, V>,
+    T: IntoTransfer<U, V>,
     U: Asset,
     V: 'static,
 {
+    let mut param = param.into_inner();
     let mut prepare_next_frame = Vec::new();
     let mut prepared_transfers = Vec::new();
 
@@ -193,33 +193,25 @@ pub(crate) fn prepare_transfers<T, U, V>(
     {
         match render_assets.get(&transfer.source) {
             Some(render_asset) => {
-                let transfer_descriptor = IntoTransfer::into(render_asset);
+                let result =
+                    { IntoTransfer::prepare_transfer(render_asset, &transfer, &mut param) };
 
-                let staging_buffer = render_device.create_buffer(&BufferDescriptor {
-                    label: Some("staging buffer"),
-                    usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
-                    size: transfer_descriptor.size,
-                    mapped_at_creation: false,
-                });
-
-                prepared_transfers.push((
-                    transfer.destination,
-                    GpuTransfer::<T, U, V> {
-                        source: transfer_descriptor.buffer,
-                        source_offset: 0,
-                        destination: staging_buffer,
-                        destination_offset: 0,
-                        size: transfer_descriptor.size,
-                        marker: PhantomData,
-                    },
-                ));
+                match result {
+                    // Include Transfer within GpuTransfer
+                    Ok(gpu_transfer) => {
+                        prepared_transfers.push((transfer, gpu_transfer));
+                    }
+                    Err(PrepareAssetError::RetryNextUpdate(_)) => {
+                        prepare_next_frame.push(transfer);
+                    }
+                }
             }
             _ => prepare_next_frame.push(transfer),
         }
     }
 
     commands.insert_resource(PrepareNextFrameTransfers {
-        transfers: Queue(prepare_next_frame),
+        transfers: prepare_next_frame,
     });
     commands.insert_resource(prepared_transfers);
 }

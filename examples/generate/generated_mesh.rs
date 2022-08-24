@@ -1,4 +1,4 @@
-use crate::{generate_mesh::GenerateMesh, into_render_asset::IntoRenderAsset, VertexData};
+use crate::{generate_mesh::GenerateMesh, into_render_asset::IntoRenderAsset, Vertices};
 use bevy::{
     ecs::system::{lifetimeless::SRes, SystemParamItem},
     pbr::MeshUniform,
@@ -18,13 +18,10 @@ use bevy_transfer::FromTransfer;
 #[uuid = "2b6378c3-e473-499f-99b6-7172e6eb0d5a"]
 pub struct GeneratedMesh(pub Mesh);
 
-impl FromTransfer<GenerateMesh, VertexData> for GeneratedMesh {
+impl FromTransfer<GenerateMesh, Vertices> for GeneratedMesh {
     type Param = ();
 
-    fn from(
-        data: &[u8],
-        _param: &mut Self::Param,
-    ) -> Result<Self, PrepareAssetError<GeneratedMesh>> {
+    fn from(data: &[u8], _param: &mut Self::Param) -> Result<Self, PrepareAssetError<()>> {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
         let data: Vec<_> = data

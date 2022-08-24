@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use bevy::{
     core::cast_slice,
     ecs::system::{lifetimeless::SRes, SystemParamItem},
@@ -9,9 +11,9 @@ use bevy::{
     },
 };
 
-use bevy_transfer::{IntoTransfer, TransferDescriptor};
+use bevy_transfer::{GpuTransfer, IntoTransfer, Transfer};
 
-use crate::{generated_mesh::GeneratedMesh, VertexData};
+use crate::{generated_mesh::GeneratedMesh, Vertices};
 
 #[derive(Clone, TypeUuid)]
 #[uuid = "cd1cb232-71b1-4b63-878e-6730732911d1"]
@@ -71,11 +73,31 @@ impl RenderAsset for GenerateMesh {
     }
 }
 
-impl IntoTransfer<GeneratedMesh, VertexData> for GpuGenerateMesh {
-    fn into(&self) -> TransferDescriptor {
-        TransferDescriptor {
-            buffer: self.buffer.clone(),
-            size: self.size,
-        }
+impl IntoTransfer<GeneratedMesh, Vertices> for GenerateMesh {
+    type Param = SRes<RenderDevice>;
+
+    fn prepare_transfer(
+        prepared_asset: &GpuGenerateMesh,
+        _: &Transfer<Self, GeneratedMesh, Vertices>,
+        render_device: &mut SystemParamItem<<Self as IntoTransfer<GeneratedMesh, Vertices>>::Param>,
+    ) -> Result<
+        GpuTransfer<Self, GeneratedMesh, Vertices>,
+        PrepareAssetError<Transfer<Self, GeneratedMesh, Vertices>>,
+    > {
+        let staging_buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some("staging buffer"),
+            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            size: prepared_asset.size,
+            mapped_at_creation: false,
+        });
+
+        Ok(GpuTransfer::<Self, GeneratedMesh, Vertices> {
+            source: prepared_asset.buffer.clone(),
+            source_offset: 0,
+            destination: staging_buffer,
+            destination_offset: 0,
+            size: prepared_asset.size,
+            marker: PhantomData,
+        })
     }
 }
