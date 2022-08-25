@@ -1,5 +1,4 @@
 use bevy::asset::HandleId;
-use bevy::render::render_asset::RenderAssetPlugin;
 use bevy::render::render_graph::RenderGraph;
 use bevy::render::{RenderApp, RenderStage};
 use bevy::{prelude::*, render};

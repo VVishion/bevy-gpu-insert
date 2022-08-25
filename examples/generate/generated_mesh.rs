@@ -23,7 +23,7 @@ impl GpuInsert for GeneratedMesh {
 
     fn insert(
         data: &[u8],
-        param: &mut SystemParamItem<Self::Param>,
+        _: &mut SystemParamItem<Self::Param>,
     ) -> Result<Self, PrepareAssetError<()>> {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
