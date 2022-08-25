@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use bevy::{
-    asset::Asset,
     prelude::World,
     render::{
         render_graph,
@@ -10,25 +9,26 @@ use bevy::{
 };
 use wgpu::CommandEncoderDescriptor;
 
-use crate::transfer::{PreparedTransfers, TransferSender};
+use crate::{
+    transfer::{GpuInsertCommand, GpuInsertSender},
+    GpuInsert,
+};
 
 pub mod node {
     pub const TRANSFER: &str = "transfer";
 }
 
-pub struct TransferNode<T, U, V>(PhantomData<fn(T, V) -> U>);
+pub struct TransferNode<T>(PhantomData<fn() -> T>);
 
-impl<T, U, V> Default for TransferNode<T, U, V> {
+impl<T> Default for TransferNode<T> {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<T, U, V> render_graph::Node for TransferNode<T, U, V>
+impl<T> render_graph::Node for TransferNode<T>
 where
-    T: Asset,
-    U: Asset,
-    V: 'static,
+    T: GpuInsert,
 {
     fn run(
         &self,
@@ -36,36 +36,37 @@ where
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let prepared_transfers = world.resource::<PreparedTransfers<T, U, V>>();
-        let transfer_sender = world.resource::<TransferSender<T, U, V>>();
+        let gpu_insert_commands = world.resource::<Vec<GpuInsertCommand<T>>>();
+        let transfer_sender = world.resource::<GpuInsertSender<T>>();
 
         let mut encoder = render_context
             .render_device
             .create_command_encoder(&CommandEncoderDescriptor::default());
 
-        for (_, gpu_transfer) in prepared_transfers.iter() {
+        for command in gpu_insert_commands.iter() {
             encoder.copy_buffer_to_buffer(
-                &gpu_transfer.source,
-                gpu_transfer.source_offset,
-                &gpu_transfer.destination,
-                gpu_transfer.destination_offset,
-                gpu_transfer.size,
+                &command.buffer,
+                command.bounds.start,
+                &command.staging_buffer,
+                command.staging_buffer_offset,
+                command.bounds.end - command.bounds.start,
             );
         }
 
         let render_queue = world.resource::<RenderQueue>();
         render_queue.submit(std::iter::once(encoder.finish()));
 
-        for (transfer, gpu_transfer) in prepared_transfers.iter() {
-            let handle = transfer.destination.clone_weak();
-            let buffer = gpu_transfer.destination.clone();
+        for command in gpu_insert_commands.iter() {
+            let command_clone = command.clone();
             let transfer_sender = transfer_sender.clone();
 
-            let buffer_slice = gpu_transfer.destination.slice(..);
+            let buffer_slice = command.staging_buffer.slice(..);
+
+            println!("map");
 
             buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
                 result.unwrap();
-                transfer_sender.try_send((handle, buffer)).unwrap();
+                transfer_sender.try_send(command_clone).unwrap();
             });
         }
 

@@ -8,7 +8,8 @@ use bevy::{
 };
 use wgpu::CommandEncoderDescriptor;
 
-use super::{pipeline::GenerateMeshPipeline, GenerateMeshBindGroups};
+use super::pipeline::GenerateMeshPipeline;
+use crate::GenerateMeshCommandBindGroups;
 
 pub mod node {
     pub const GENERATE_MESH: &str = "generate_mesh";
@@ -55,7 +56,8 @@ impl render_graph::Node for GenerateMeshNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let GenerateMeshBindGroups { bind_groups } = world.resource::<GenerateMeshBindGroups>();
+        let GenerateMeshCommandBindGroups { bind_groups } =
+            world.resource::<GenerateMeshCommandBindGroups>();
 
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<GenerateMeshPipeline>();
@@ -77,6 +79,7 @@ impl render_graph::Node for GenerateMeshNode {
 
                     for (subdivisions, bind_group) in bind_groups.iter() {
                         pass.set_bind_group(0, bind_group, &[]);
+                        println!("dispatch");
                         pass.dispatch_workgroups(*subdivisions, *subdivisions, 1);
                     }
                 }

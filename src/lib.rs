@@ -1,37 +1,27 @@
 use std::marker::PhantomData;
 
 use bevy::{
-    asset::Asset,
     prelude::{App, CoreStage, Plugin},
-    render::{render_asset::RenderAsset, RenderApp, RenderStage},
+    render::{RenderApp, RenderStage},
 };
 pub use compute::graph::TransferNode;
 
 pub mod compute;
 pub mod transfer;
 
-use transfer::{clear_transfers, extract_transfers, prepare_transfers, resolve_pending_transfers};
-pub use transfer::{
-    FromTransfer, GpuTransfer, IntoTransfer, PrepareNextFrameTransfers, ResolveNextFrameTransfers,
-    Transfer,
-};
+use transfer::{clear_gpu_insert_commands, insert, GpuInsertCommand};
+pub use transfer::{GpuInsert, InsertNextFrame};
 
-pub struct TransferPlugin<T, U, V>
+pub struct GpuInsertPlugin<T>
 where
-    T: RenderAsset,
-    T: IntoTransfer<U, V>,
-    U: Asset + FromTransfer<T, V>,
-    V: 'static,
+    T: GpuInsert,
 {
-    marker: PhantomData<fn(T, V) -> U>,
+    marker: PhantomData<fn() -> T>,
 }
 
-impl<T, U, V> Default for TransferPlugin<T, U, V>
+impl<T> Default for GpuInsertPlugin<T>
 where
-    T: RenderAsset,
-    T: IntoTransfer<U, V>,
-    U: Asset + FromTransfer<T, V>,
-    V: 'static,
+    T: GpuInsert,
 {
     fn default() -> Self {
         Self {
@@ -40,29 +30,23 @@ where
     }
 }
 
-impl<T, U, V> Plugin for TransferPlugin<T, U, V>
+impl<T> Plugin for GpuInsertPlugin<T>
 where
-    T: RenderAsset,
-    T: IntoTransfer<U, V>,
-    U: Asset + FromTransfer<T, V>,
-    V: 'static,
+    T: GpuInsert,
 {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ResolveNextFrameTransfers<T, U, V>>()
+        app.init_resource::<InsertNextFrame<T>>()
             // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
-            .add_system_to_stage(CoreStage::First, resolve_pending_transfers::<T, U, V>)
-            .add_system_to_stage(CoreStage::First, clear_transfers::<T, U, V>);
+            .add_system_to_stage(CoreStage::First, insert::<T>);
 
-        let (sender, receiver) = transfer::create_transfer_channels::<T, U, V>();
+        let (sender, receiver) = transfer::create_transfer_channels::<T>();
         app.insert_resource(receiver);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .insert_resource(sender)
-                .init_resource::<PrepareNextFrameTransfers<T, U, V>>()
-                .init_resource::<Vec<GpuTransfer<T, U, V>>>()
-                .add_system_to_stage(RenderStage::Extract, extract_transfers::<T, U, V>)
-                .add_system_to_stage(RenderStage::Prepare, prepare_transfers::<T, U, V>);
+                .init_resource::<Vec<GpuInsertCommand<T>>>()
+                .add_system_to_stage(RenderStage::Cleanup, clear_gpu_insert_commands::<T>);
         }
     }
 }

@@ -3,11 +3,12 @@ use bevy::render::render_asset::RenderAssetPlugin;
 use bevy::render::render_graph::RenderGraph;
 use bevy::render::{RenderApp, RenderStage};
 use bevy::{prelude::*, render};
-use bevy_transfer::{Transfer, TransferNode, TransferPlugin};
+use bevy_transfer::{GpuInsertPlugin, TransferNode};
 use compute::graph::GenerateMeshNode;
 use compute::pipeline::GenerateMeshPipeline;
-use compute::{
-    extract_generate_mesh_changes, queue_generate_mesh_bind_groups, GenerateMeshBindGroups,
+use generate_mesh::{
+    clear_generate_mesh_commands, clear_gpu_generate_mesh_commands, extract_generate_mesh_commands,
+    prepare_generate_mesh_commands, queue_generate_mesh_command_bind_groups,
 };
 use into_render_asset::IntoRenderAssetPlugin;
 
@@ -16,29 +17,32 @@ mod generate_mesh;
 mod generated_mesh;
 pub mod into_render_asset;
 
-use generate_mesh::GenerateMesh;
+pub use generate_mesh::{
+    GenerateMeshCommand, GenerateMeshCommandBindGroups, GpuGenerateMeshCommand,
+};
 use generated_mesh::{extract_generated_mesh, GeneratedMesh};
 
 struct GenerateMeshPlugin;
 
 impl Plugin for GenerateMeshPlugin {
     fn build(&self, app: &mut App) {
-        app.add_asset::<GenerateMesh>()
-            .add_asset::<GeneratedMesh>()
+        app.add_asset::<GeneratedMesh>()
             .add_plugin(IntoRenderAssetPlugin::<GeneratedMesh>::default())
-            .add_plugin(RenderAssetPlugin::<GenerateMesh>::default())
-            .add_plugin(TransferPlugin::<GenerateMesh, GeneratedMesh, Vertices>::default());
+            .add_plugin(GpuInsertPlugin::<GeneratedMesh>::default())
+            .add_system_to_stage(CoreStage::First, clear_generate_mesh_commands);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
                 .init_resource::<GenerateMeshPipeline>()
-                .init_resource::<GenerateMeshBindGroups>()
-                .add_system_to_stage(RenderStage::Extract, extract_generate_mesh_changes)
+                .init_resource::<GenerateMeshCommandBindGroups>()
+                .add_system_to_stage(RenderStage::Extract, extract_generate_mesh_commands)
                 .add_system_to_stage(RenderStage::Extract, extract_generated_mesh)
-                .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_bind_groups);
+                .add_system_to_stage(RenderStage::Prepare, prepare_generate_mesh_commands)
+                .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_command_bind_groups)
+                .add_system_to_stage(RenderStage::Cleanup, clear_gpu_generate_mesh_commands);
 
             let generate_terrain_mesh_node = GenerateMeshNode::new();
-            let transfer_node = TransferNode::<GenerateMesh, GeneratedMesh, Vertices>::default();
+            let transfer_node = TransferNode::<GeneratedMesh>::default();
 
             let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
@@ -49,6 +53,7 @@ impl Plugin for GenerateMeshPlugin {
 
             render_graph.add_node("generate_mesh_transfer", transfer_node);
 
+            // is this right?
             render_graph
                 .add_node_edge(
                     compute::graph::node::GENERATE_MESH,
@@ -58,8 +63,8 @@ impl Plugin for GenerateMeshPlugin {
 
             render_graph
                 .add_node_edge(
-                    "generate_mesh_transfer",
                     compute::graph::node::GENERATE_MESH,
+                    "generate_mesh_transfer",
                 )
                 .unwrap();
         }
@@ -79,23 +84,20 @@ fn main() {
 fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut generate_meshes: ResMut<Assets<GenerateMesh>>,
-    mut transfers: ResMut<Vec<Transfer<GenerateMesh, GeneratedMesh, Vertices>>>,
+    mut generate_mesh_commands: ResMut<Vec<GenerateMeshCommand>>,
     generated_meshes: Res<Assets<GeneratedMesh>>,
 ) {
     let subdivisions = 20;
 
-    let source = generate_meshes.add(GenerateMesh { subdivisions });
     let id = HandleId::random::<GeneratedMesh>();
     let mut destination = Handle::weak(id);
     destination.make_strong(&generated_meshes);
-
-    let transfer = Transfer::<_, _, Vertices>::new(source.clone_weak(), destination.clone_weak());
-
-    transfers.push(transfer);
+    generate_mesh_commands.push(GenerateMeshCommand {
+        insert: destination.clone_weak(),
+        subdivisions,
+    });
 
     commands.spawn_bundle((
-        source,
         destination,
         materials.add(StandardMaterial {
             base_color: Color::GREEN,
