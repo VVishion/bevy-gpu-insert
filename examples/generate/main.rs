@@ -3,7 +3,7 @@ use bevy::render::render_asset::RenderAssetPlugin;
 use bevy::render::render_graph::RenderGraph;
 use bevy::render::{RenderApp, RenderStage};
 use bevy::{prelude::*, render};
-use bevy_transfer::{GpuInsertPlugin, TransferNode};
+use bevy_gpu_insert::{GpuInsertPlugin, TransferNode};
 use compute::graph::GenerateMeshNode;
 use compute::pipeline::GenerateMeshPipeline;
 use generate_mesh::{
@@ -56,7 +56,7 @@ impl Plugin for GenerateMeshPlugin {
             // is this right?
             render_graph
                 .add_node_edge(
-                    compute::graph::node::GENERATE_MESH,
+                    "generate_mesh_transfer",
                     render::main_graph::node::CAMERA_DRIVER,
                 )
                 .unwrap();

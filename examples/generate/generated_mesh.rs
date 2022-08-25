@@ -12,7 +12,7 @@ use bevy::{
         Extract,
     },
 };
-use bevy_transfer::GpuInsert;
+use bevy_gpu_insert::GpuInsert;
 
 #[derive(TypeUuid, Clone, Deref)]
 #[uuid = "2b6378c3-e473-499f-99b6-7172e6eb0d5a"]

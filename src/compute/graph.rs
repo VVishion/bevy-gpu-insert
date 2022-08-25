@@ -10,7 +10,7 @@ use bevy::{
 use wgpu::CommandEncoderDescriptor;
 
 use crate::{
-    transfer::{GpuInsertCommand, GpuInsertSender},
+    gpu_insert::{GpuInsertCommand, GpuInsertSender},
     GpuInsert,
 };
 
@@ -61,8 +61,6 @@ where
             let transfer_sender = transfer_sender.clone();
 
             let buffer_slice = command.staging_buffer.slice(..);
-
-            println!("map");
 
             buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
                 result.unwrap();

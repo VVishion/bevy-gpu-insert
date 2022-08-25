@@ -7,10 +7,10 @@ use bevy::{
 pub use compute::graph::TransferNode;
 
 pub mod compute;
-pub mod transfer;
+pub mod gpu_insert;
 
-use transfer::{clear_gpu_insert_commands, insert, GpuInsertCommand};
-pub use transfer::{GpuInsert, InsertNextFrame};
+use gpu_insert::{clear_gpu_insert_commands, insert};
+pub use gpu_insert::{GpuInsert, GpuInsertCommand, InsertNextFrame};
 
 pub struct GpuInsertPlugin<T>
 where
@@ -39,7 +39,7 @@ where
             // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
             .add_system_to_stage(CoreStage::First, insert::<T>);
 
-        let (sender, receiver) = transfer::create_transfer_channels::<T>();
+        let (sender, receiver) = gpu_insert::create_transfer_channels::<T>();
         app.insert_resource(receiver);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {

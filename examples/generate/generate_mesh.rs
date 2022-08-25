@@ -12,7 +12,7 @@ use bevy::{
     },
 };
 
-use bevy_transfer::transfer::GpuInsertCommand;
+use bevy_gpu_insert::GpuInsertCommand;
 
 use crate::{compute::pipeline::GenerateMeshPipeline, generated_mesh::GeneratedMesh};
 

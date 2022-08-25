@@ -79,7 +79,6 @@ impl render_graph::Node for GenerateMeshNode {
 
                     for (subdivisions, bind_group) in bind_groups.iter() {
                         pass.set_bind_group(0, bind_group, &[]);
-                        println!("dispatch");
                         pass.dispatch_workgroups(*subdivisions, *subdivisions, 1);
                     }
                 }
