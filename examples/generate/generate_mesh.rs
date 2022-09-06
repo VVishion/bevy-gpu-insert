@@ -84,11 +84,11 @@ pub(crate) fn prepare_generate_mesh_commands(
         });
 
         gpu_insert_commands.push(GpuInsertCommand {
-            insert: command.insert.clone_weak(),
             buffer: buffer.clone(),
             bounds: 0..size,
             staging_buffer,
             staging_buffer_offset: 0,
+            info: command.insert.clone_weak(),
         });
 
         gpu_generate_mesh_commands.push(GpuGenerateMeshCommand {

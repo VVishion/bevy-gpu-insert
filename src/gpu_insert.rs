@@ -3,7 +3,7 @@ use std::ops::Range;
 use bevy::{
     asset::Asset,
     ecs::system::{StaticSystemParam, SystemParam, SystemParamItem},
-    prelude::{Assets, Commands, Handle, Res, ResMut},
+    prelude::{Commands, Res, ResMut},
     render::{
         render_asset::PrepareAssetError,
         render_resource::{Buffer, BufferAddress},
@@ -63,12 +63,11 @@ pub struct GpuInsertCommand<T>
 where
     T: GpuInsert,
 {
-    pub insert: Handle<T>,
     pub buffer: Buffer,
     pub bounds: Range<BufferAddress>,
     pub staging_buffer: Buffer,
     pub staging_buffer_offset: BufferAddress,
-    // pub info: T::Info
+    pub info: T::Info,
 }
 
 impl<T> Clone for GpuInsertCommand<T>
@@ -77,11 +76,11 @@ where
 {
     fn clone(&self) -> Self {
         Self {
-            insert: self.insert.clone_weak(),
             buffer: self.buffer.clone(),
             bounds: self.bounds.clone(),
             staging_buffer: self.staging_buffer.clone(),
             staging_buffer_offset: self.staging_buffer_offset,
+            info: self.info.clone(),
         }
     }
 }
@@ -91,14 +90,15 @@ where
     Self: Asset,
     Self: Sized,
 {
-    // type Info: Clone;
+    // If Info is not copied to render world to be sent back this must not be Clone + Senf + Sync
+    type Info: Clone + Send + Sync;
     type Param: SystemParam;
 
     fn insert(
         data: &[u8],
-        // info: Info,
+        info: Self::Info,
         param: &mut SystemParamItem<Self::Param>,
-    ) -> Result<Self, PrepareAssetError<()>>;
+    ) -> Result<(), PrepareAssetError<()>>;
 }
 
 pub struct InsertNextFrame<T>
@@ -129,7 +129,6 @@ where
 pub(crate) fn insert<T>(
     transfer_receiver: Res<GpuInsertReceiver<T>>,
     mut insert_next_frame: ResMut<InsertNextFrame<T>>,
-    mut assets: ResMut<Assets<T>>,
     param: StaticSystemParam<T::Param>,
 ) where
     T: GpuInsert,
@@ -141,11 +140,16 @@ pub(crate) fn insert<T>(
         //                                                          0..gpu_transfer.size
         let buffer_slice = command.staging_buffer.slice(..);
 
-        let result = { T::insert(&buffer_slice.get_mapped_range(), &mut param) };
+        let result = {
+            T::insert(
+                &buffer_slice.get_mapped_range(),
+                command.info.clone(),
+                &mut param,
+            )
+        };
 
         match result {
-            Ok(asset) => {
-                let _ = assets.set(command.insert, asset);
+            Ok(_) => {
                 command.staging_buffer.unmap();
             }
             Err(PrepareAssetError::RetryNextUpdate(_)) => {

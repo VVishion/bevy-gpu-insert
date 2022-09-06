@@ -1,8 +1,11 @@
 use crate::into_render_asset::IntoRenderAsset;
 use bevy::{
-    ecs::system::{lifetimeless::SRes, SystemParamItem},
+    ecs::system::{
+        lifetimeless::{SRes, SResMut},
+        SystemParamItem,
+    },
     pbr::MeshUniform,
-    prelude::{Commands, Deref, Entity, GlobalTransform, Handle, Mesh, Query, With},
+    prelude::{Assets, Commands, Deref, Entity, GlobalTransform, Handle, Mesh, Query, With},
     reflect::TypeUuid,
     render::{
         mesh::{GpuBufferInfo, GpuMesh, Indices},
@@ -19,12 +22,14 @@ use bevy_gpu_insert::GpuInsert;
 pub struct GeneratedMesh(pub Mesh);
 
 impl GpuInsert for GeneratedMesh {
-    type Param = ();
+    type Info = Handle<GeneratedMesh>;
+    type Param = SResMut<Assets<GeneratedMesh>>;
 
     fn insert(
         data: &[u8],
-        _: &mut SystemParamItem<Self::Param>,
-    ) -> Result<Self, PrepareAssetError<()>> {
+        info: Self::Info,
+        assets: &mut SystemParamItem<Self::Param>,
+    ) -> Result<(), PrepareAssetError<()>> {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
         let data: Vec<_> = data
@@ -67,7 +72,9 @@ impl GpuInsert for GeneratedMesh {
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
         mesh.set_indices(Some(indices));
 
-        Ok(Self(mesh))
+        let _ = assets.set(info, Self(mesh));
+
+        Ok(())
     }
 }
 
