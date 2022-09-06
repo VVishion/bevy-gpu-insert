@@ -67,7 +67,7 @@ impl GpuInsert for GeneratedMesh {
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
         mesh.set_indices(Some(indices));
 
-        Ok(GeneratedMesh(mesh))
+        Ok(Self(mesh))
     }
 }
 

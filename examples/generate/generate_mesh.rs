@@ -1,7 +1,6 @@
 use bevy::{
     core::cast_slice,
     prelude::{Commands, Handle, Res, ResMut},
-    reflect::TypeUuid,
     render::{
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferDescriptor,
@@ -16,8 +15,7 @@ use bevy_gpu_insert::GpuInsertCommand;
 
 use crate::{compute::pipeline::GenerateMeshPipeline, generated_mesh::GeneratedMesh};
 
-#[derive(Clone, TypeUuid)]
-#[uuid = "cd1cb232-71b1-4b63-878e-6730732911d1"]
+#[derive(Clone)]
 pub struct GenerateMeshCommand {
     pub insert: Handle<GeneratedMesh>,
     pub subdivisions: u32,
@@ -46,7 +44,6 @@ pub(crate) fn extract_generate_mesh_commands(
     commands.insert_resource(generate_mesh_commands.clone());
 }
 
-// must be called before prepare transfer
 pub(crate) fn prepare_generate_mesh_commands(
     mut commands: Commands,
     render_device: Res<RenderDevice>,

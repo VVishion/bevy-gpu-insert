@@ -154,11 +154,10 @@ pub(crate) fn insert<T>(
         }
     };
 
-    for command in queued_transfers.drain(..) {
-        resolve(command);
-    }
-
-    for command in transfer_receiver.try_iter() {
+    for command in queued_transfers
+        .drain(..)
+        .chain(transfer_receiver.try_iter())
+    {
         resolve(command);
     }
 }
