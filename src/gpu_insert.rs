@@ -4,10 +4,7 @@ use bevy::{
     asset::Asset,
     ecs::system::{StaticSystemParam, SystemParam, SystemParamItem},
     prelude::{Commands, Res, ResMut},
-    render::{
-        render_asset::PrepareAssetError,
-        render_resource::{Buffer, BufferAddress},
-    },
+    render::render_resource::{Buffer, BufferAddress},
 };
 use crossbeam_channel::{Receiver, Sender};
 use std::ops::Deref;
@@ -85,12 +82,15 @@ where
     }
 }
 
+pub enum GpuInsertError {
+    RetryNextUpdate,
+}
+
 pub trait GpuInsert
 where
     Self: Asset,
     Self: Sized,
 {
-    // If Info is not copied to render world to be sent back this must not be Clone + Senf + Sync
     type Info: Clone + Send + Sync;
     type Param: SystemParam;
 
@@ -98,7 +98,7 @@ where
         data: &[u8],
         info: Self::Info,
         param: &mut SystemParamItem<Self::Param>,
-    ) -> Result<(), PrepareAssetError<()>>;
+    ) -> Result<(), GpuInsertError>;
 }
 
 pub struct InsertNextFrame<T>
@@ -137,8 +137,10 @@ pub(crate) fn insert<T>(
     let mut queued_transfers = std::mem::take(&mut insert_next_frame.commands);
 
     let mut resolve = |command: GpuInsertCommand<T>| {
-        //                                                          0..gpu_transfer.size
-        let buffer_slice = command.staging_buffer.slice(..);
+        let buffer_slice = command.staging_buffer.slice(
+            command.staging_buffer_offset
+                ..command.staging_buffer_offset + (command.bounds.end - command.bounds.start),
+        );
 
         let result = {
             T::insert(
@@ -152,7 +154,7 @@ pub(crate) fn insert<T>(
             Ok(_) => {
                 command.staging_buffer.unmap();
             }
-            Err(PrepareAssetError::RetryNextUpdate(_)) => {
+            Err(GpuInsertError::RetryNextUpdate) => {
                 insert_next_frame.commands.push(command);
             }
         }

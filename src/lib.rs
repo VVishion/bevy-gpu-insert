@@ -10,7 +10,7 @@ pub mod compute;
 pub mod gpu_insert;
 
 use gpu_insert::{clear_gpu_insert_commands, insert};
-pub use gpu_insert::{GpuInsert, GpuInsertCommand, InsertNextFrame};
+pub use gpu_insert::{GpuInsert, GpuInsertCommand, GpuInsertError, InsertNextFrame};
 
 pub struct GpuInsertPlugin<T>
 where

@@ -15,7 +15,7 @@ use bevy::{
         Extract,
     },
 };
-use bevy_gpu_insert::GpuInsert;
+use bevy_gpu_insert::{GpuInsert, GpuInsertError};
 
 #[derive(TypeUuid, Clone, Deref)]
 #[uuid = "2b6378c3-e473-499f-99b6-7172e6eb0d5a"]
@@ -29,7 +29,7 @@ impl GpuInsert for GeneratedMesh {
         data: &[u8],
         info: Self::Info,
         assets: &mut SystemParamItem<Self::Param>,
-    ) -> Result<(), PrepareAssetError<()>> {
+    ) -> Result<(), GpuInsertError> {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
         let data: Vec<_> = data

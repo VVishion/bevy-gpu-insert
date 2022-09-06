@@ -100,7 +100,6 @@ fn setup(
         destination,
         materials.add(StandardMaterial {
             base_color: Color::GREEN,
-            //cull_mode: None,
             ..default()
         }),
         Transform::default(),
@@ -133,22 +132,9 @@ fn setup(
         ..default()
     });
 
-    // commands.spawn_bundle(PointLightBundle {
-    //     // transform: Transform::from_xyz(5.0, 8.0, 2.0),
-    //     transform: Transform::from_xyz(0.8, 1.0, 0.8),
-    //     point_light: PointLight {
-    //         intensity: 160000000.0,
-    //         color: Color::BLUE,
-    //         shadows_enabled: true,
-    //         ..default()
-    //     },
-    //     ..default()
-    // });
-
     commands.spawn_bundle(Camera3dBundle {
         transform: Transform::from_xyz(-1.0, 5.0, -1.0)
             .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
-        //projection: Projection::Orthographic(OrthographicProjection::default()),
         ..default()
     });
 }

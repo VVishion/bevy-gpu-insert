@@ -14,10 +14,6 @@ use crate::{
     GpuInsert,
 };
 
-pub mod node {
-    pub const TRANSFER: &str = "transfer";
-}
-
 pub struct TransferNode<T>(PhantomData<fn() -> T>);
 
 impl<T> Default for TransferNode<T> {
@@ -60,7 +56,10 @@ where
             let command_clone = command.clone();
             let transfer_sender = transfer_sender.clone();
 
-            let buffer_slice = command.staging_buffer.slice(..);
+            let buffer_slice = command.staging_buffer.slice(
+                command.staging_buffer_offset
+                    ..command.staging_buffer_offset + (command.bounds.end - command.bounds.start),
+            );
 
             buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
                 result.unwrap();
