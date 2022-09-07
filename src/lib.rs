@@ -33,6 +33,7 @@ where
 impl<T> Plugin for GpuInsertPlugin<T>
 where
     T: GpuInsert,
+    T: 'static,
 {
     fn build(&self, app: &mut App) {
         app.init_resource::<InsertNextFrame<T>>()

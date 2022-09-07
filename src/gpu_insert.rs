@@ -88,7 +88,6 @@ pub enum GpuInsertError {
 
 pub trait GpuInsert
 where
-    Self: Asset,
     Self: Sized,
 {
     type Info: Clone + Send + Sync;
@@ -122,6 +121,7 @@ where
 pub(crate) fn clear_gpu_insert_commands<T>(mut commands: Commands)
 where
     T: GpuInsert,
+    T: 'static,
 {
     commands.insert_resource(Vec::<GpuInsertCommand<T>>::new());
 }
@@ -132,6 +132,7 @@ pub(crate) fn insert<T>(
     param: StaticSystemParam<T::Param>,
 ) where
     T: GpuInsert,
+    T: 'static,
 {
     let mut param = param.into_inner();
     let mut queued_transfers = std::mem::take(&mut insert_next_frame.commands);

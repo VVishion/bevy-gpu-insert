@@ -25,6 +25,7 @@ impl<T> Default for TransferNode<T> {
 impl<T> render_graph::Node for TransferNode<T>
 where
     T: GpuInsert,
+    T: 'static,
 {
     fn run(
         &self,
