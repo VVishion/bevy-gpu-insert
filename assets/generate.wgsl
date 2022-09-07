@@ -21,7 +21,7 @@ struct VertexBuffer {
 };
 
 @group(0) @binding(0)
-var<storage> divisions: u32;
+var<uniform> subdivisions: u32;
 
 @group(0) @binding(1)
 var<storage, read_write> vertex_buffer: VertexBuffer;
@@ -32,9 +32,9 @@ fn main(@builtin(workgroup_id) workgroup_id: vec3<u32>) {
     let x = workgroup_id.x;
     let y = workgroup_id.y;
 
-    let i = x + y * (divisions + 1u);
+    let i = x + y * (subdivisions + 1u);
 
-    let spacing = 1f / (f32(divisions));
+    let spacing = 1f / (f32(subdivisions));
 
     let pos = Position(f32(x) * spacing, f32(y) * spacing);
     

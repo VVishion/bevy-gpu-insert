@@ -71,7 +71,7 @@ pub(crate) fn prepare_generate_mesh_commands(
         });
 
         let subdivisions_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            usage: BufferUsages::STORAGE,
+            usage: BufferUsages::UNIFORM,
             label: Some("generate mesh divisions buffer"),
             contents: cast_slice(&[subdivisions]),
         });

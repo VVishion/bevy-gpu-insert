@@ -29,7 +29,7 @@ impl FromWorld for GenerateMeshPipeline {
                             binding: 0,
                             visibility: ShaderStages::COMPUTE,
                             ty: BindingType::Buffer {
-                                ty: BufferBindingType::Storage { read_only: true },
+                                ty: BufferBindingType::Uniform,
                                 has_dynamic_offset: false,
                                 min_binding_size: None,
                             },
