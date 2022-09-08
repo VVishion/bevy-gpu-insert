@@ -85,6 +85,7 @@ impl render_graph::Node for GenerateMeshNode {
             }
         }
 
+        // submit commands before copy buffer command is submitted on the main render queue by gpu-insert
         let render_queue = world.resource::<RenderQueue>();
         render_queue.submit(std::iter::once(encoder.finish()));
 

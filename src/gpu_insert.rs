@@ -1,7 +1,6 @@
 use std::ops::Range;
 
 use bevy::{
-    asset::Asset,
     ecs::system::{StaticSystemParam, SystemParam, SystemParamItem},
     prelude::{Commands, Res, ResMut},
     render::render_resource::{Buffer, BufferAddress},
