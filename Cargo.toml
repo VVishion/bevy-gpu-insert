@@ -7,10 +7,12 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.8"
-bevy-map-handle = { git = "https://github.com/VVishion/bevy-map-handle" }
-bevy-into-render-asset = { git = "https://github.com/VVishion/bevy-into-render-asset" }
 crossbeam-channel = "0.5"
-itertools = "0.10"
 
 [[example]]
 name = "generate"
+
+[dev-dependencies]
+itertools = "0.10"
+bevy-into-render-asset = { git = "https://github.com/VVishion/bevy-into-render-asset" }
+bevy-map-handle = { git = "https://github.com/VVishion/bevy-map-handle" }
