@@ -2,7 +2,9 @@
 
 Insert data from buffers on the Gpu to the `MainWorld`.
 
-```
+Take a look at the example: `cargo r --example generate`.
+
+```rust
 impl GpuInsert for GeneratedMesh {
     type Info = Handle<GeneratedMesh>;
     type Param = SResMut<Assets<GeneratedMesh>>;
@@ -28,7 +30,7 @@ impl GpuInsert for GeneratedMesh {
 }
 ```
 
-```
+```rust
 fn queue_gpu_inserts(
     mut gpu_insert_commands: ResMut<Vec<GpuInsertCommand<GeneratedMesh>>>,
 ) {
