@@ -26,8 +26,10 @@ pub struct GenerateMeshCommand {
 pub struct GpuGenerateMeshCommand {
     pub buffer: Buffer,
     pub subdivisions_buffer: Buffer,
+    pub staging_buffer: Buffer,
     pub subdivisions: u32,
     pub size: u64,
+    pub insert: Handle<GeneratedMesh>,
 }
 
 pub(crate) fn clear_generate_mesh_commands(mut commands: Commands) {
@@ -49,12 +51,15 @@ pub(crate) fn prepare_generate_mesh_commands(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     mut generate_mesh_commands: ResMut<Vec<GenerateMeshCommand>>,
-    mut gpu_insert_commands: ResMut<Vec<GpuInsertCommand<GeneratedMesh>>>,
 ) {
     let mut gpu_generate_mesh_commands = Vec::new();
 
-    for command in generate_mesh_commands.drain(..) {
-        let subdivisions = command.subdivisions;
+    for GenerateMeshCommand {
+        insert,
+        subdivisions,
+    } in generate_mesh_commands.drain(..)
+    {
+        let subdivisions = subdivisions;
 
         let size = 8
             * std::mem::size_of::<f32>() as u64
@@ -84,19 +89,13 @@ pub(crate) fn prepare_generate_mesh_commands(
             mapped_at_creation: false,
         });
 
-        gpu_insert_commands.push(GpuInsertCommand {
-            buffer: buffer.clone(),
-            bounds: 0..size,
-            staging_buffer,
-            staging_buffer_offset: 0,
-            info: command.insert.clone_weak(),
-        });
-
         gpu_generate_mesh_commands.push(GpuGenerateMeshCommand {
             buffer,
             subdivisions_buffer,
+            staging_buffer,
             subdivisions,
             size,
+            insert,
         });
     }
 
@@ -108,11 +107,12 @@ pub struct GenerateMeshDispatch {
     pub workgroups: UVec3,
 }
 
-pub(crate) fn queue_generate_mesh_command_bind_groups(
+pub(crate) fn queue_generate_mesh_dispatches(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     pipeline: Res<GenerateMeshPipeline>,
     gpu_generate_mesh_commands: Res<Vec<GpuGenerateMeshCommand>>,
+    mut gpu_insert_commands: ResMut<Vec<GpuInsertCommand<GeneratedMesh>>>,
 ) {
     let mut dispatches = Vec::new();
 
@@ -130,6 +130,14 @@ pub(crate) fn queue_generate_mesh_command_bind_groups(
             ],
             label: Some("generate mesh command bind group"),
             layout: &pipeline.bind_group_layout,
+        });
+
+        gpu_insert_commands.push(GpuInsertCommand {
+            buffer: gpu_command.buffer.clone(),
+            bounds: 0..gpu_command.size,
+            staging_buffer: gpu_command.staging_buffer.clone(),
+            staging_buffer_offset: 0,
+            info: gpu_command.insert.clone_weak(),
         });
 
         dispatches.push(GenerateMeshDispatch {

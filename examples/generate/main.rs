@@ -10,7 +10,7 @@ use bevy_map_handle::MapHandle;
 use compute::{graph::GenerateMeshNode, pipeline::GenerateMeshPipeline};
 use generate_mesh::{
     clear_generate_mesh_commands, clear_gpu_generate_mesh_commands, extract_generate_mesh_commands,
-    prepare_generate_mesh_commands, queue_generate_mesh_command_bind_groups,
+    prepare_generate_mesh_commands, queue_generate_mesh_dispatches,
 };
 
 mod compute;
@@ -54,7 +54,7 @@ impl Plugin for GenerateMeshPlugin {
                 .add_system_to_stage(RenderStage::Extract, extract_generate_mesh_commands)
                 .add_system_to_stage(RenderStage::Extract, extract_generated_mesh)
                 .add_system_to_stage(RenderStage::Prepare, prepare_generate_mesh_commands)
-                .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_command_bind_groups)
+                .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_dispatches)
                 .add_system_to_stage(RenderStage::Cleanup, clear_gpu_generate_mesh_commands);
 
             let generate_terrain_mesh_node = GenerateMeshNode::new();
