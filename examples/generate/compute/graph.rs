@@ -9,10 +9,11 @@ use bevy::{
 use wgpu::CommandEncoderDescriptor;
 
 use super::pipeline::GenerateMeshPipeline;
-use crate::GenerateMeshCommandBindGroups;
+use crate::generate_mesh::GenerateMeshDispatch;
 
 pub mod node {
     pub const GENERATE_MESH: &str = "generate_mesh";
+    pub const STAGE_GENERATED_MESH: &str = "stage_generated_mesh";
 }
 
 enum ComputePipelineState {
@@ -37,7 +38,6 @@ impl render_graph::Node for GenerateMeshNode {
         let pipeline = world.resource::<GenerateMeshPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
-        // if the corresponding pipeline has loaded, transition to the next stage
         match self.state {
             ComputePipelineState::Loading => {
                 if let CachedPipelineState::Ok(_) =
@@ -56,12 +56,12 @@ impl render_graph::Node for GenerateMeshNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let GenerateMeshCommandBindGroups { bind_groups } =
-            world.resource::<GenerateMeshCommandBindGroups>();
+        let dispatches = world.resource::<Vec<GenerateMeshDispatch>>();
 
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<GenerateMeshPipeline>();
 
+        // IMPORTANT! create command queue to submit early. See below.
         let mut encoder = render_context
             .render_device
             .create_command_encoder(&CommandEncoderDescriptor::default());
@@ -69,6 +69,7 @@ impl render_graph::Node for GenerateMeshNode {
         {
             let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
 
+            // If pipeline is not ready commands are missed.
             match self.state {
                 ComputePipelineState::Loading => {}
                 ComputePipelineState::Ready => {
@@ -77,15 +78,19 @@ impl render_graph::Node for GenerateMeshNode {
                         .unwrap();
                     pass.set_pipeline(pipeline);
 
-                    for (subdivisions, bind_group) in bind_groups.iter() {
-                        pass.set_bind_group(0, bind_group, &[]);
-                        pass.dispatch_workgroups(*subdivisions + 1, *subdivisions + 1, 1);
+                    for dispatch in dispatches.iter() {
+                        pass.set_bind_group(0, &dispatch.bind_group, &[]);
+                        pass.dispatch_workgroups(
+                            dispatch.workgroups.x,
+                            dispatch.workgroups.y,
+                            dispatch.workgroups.z,
+                        );
                     }
                 }
             }
         }
 
-        // submit commands before copy buffer command is submitted on the main render queue by gpu-insert
+        // IMPORTANT! Submit commands to the GPU before staging buffer is staged by submitting `map_async` commands on the main command queue.
         let render_queue = world.resource::<RenderQueue>();
         render_queue.submit(std::iter::once(encoder.finish()));
 

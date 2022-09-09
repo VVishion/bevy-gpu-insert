@@ -8,10 +8,12 @@ use bevy::{
 use crossbeam_channel::{Receiver, Sender};
 use std::ops::Deref;
 
+/// Sender in the `RenderWorld` for [`GpuInsertCommands`](GpuInsertCommand) after the `staging_buffer` was staged (readable).
 pub struct GpuInsertSender<T>(pub Sender<GpuInsertCommand<T>>)
 where
     T: GpuInsert;
 
+/// Receiver in the `MainWorld` of [`GpuInsertCommands`](GpuInsertCommand) after the `staging_buffer` was staged (readable).
 pub struct GpuInsertReceiver<T>(pub Receiver<GpuInsertCommand<T>>)
 where
     T: GpuInsert;
@@ -47,7 +49,7 @@ where
     }
 }
 
-pub fn create_transfer_channels<T>() -> (GpuInsertSender<T>, GpuInsertReceiver<T>)
+pub(crate) fn create_transfer_channels<T>() -> (GpuInsertSender<T>, GpuInsertReceiver<T>)
 where
     T: GpuInsert,
 {
@@ -55,6 +57,11 @@ where
     (GpuInsertSender(s), GpuInsertReceiver(r))
 }
 
+/// Issue an [`GpuInsert::insert`] with data from `buffer` copied to `staging_buffer`  to be staged (readable) for the `MainWorld`.
+///
+/// Data from `buffer` within the `bounds` will be copied to the `staging_buffer` starting at the `staging_buffer_offset`.
+///
+/// Issue an [`GpuInsertCommand`] for `T` implementing [`GpuInsert`] by pushing it the resource [`Vec<GpuInsertCommand<T>>`] in the `RenderWorld`.
 pub struct GpuInsertCommand<T>
 where
     T: GpuInsert,
@@ -85,13 +92,18 @@ pub enum GpuInsertError {
     RetryNextUpdate,
 }
 
-pub trait GpuInsert
-where
-    Self: Sized,
-{
+/// `Insert` data to the `MainWorld` from staged (readable) buffers on the Gpu.
+pub trait GpuInsert {
+    /// Data required to complete the `insert`.
+    /// It will be passed forth from the [`GpuInsertCommand`] issuing this `insert`.
+    /// [`GpuInsert::insert`] will be called with `info`.
     type Info: Clone + Send + Sync;
+    /// Access ECS data required to complete the `insert`.
+    /// Use [`lifetimeless`](bevy::ecs::system::lifetimeless) [`SystemParam`] for convenience.
+    /// [`GpuInsert::insert`] will be called with `param`.
     type Param: SystemParam;
 
+    /// Insert data into the `MainWorld`.
     fn insert(
         data: &[u8],
         info: Self::Info,
@@ -99,6 +111,7 @@ where
     ) -> Result<(), GpuInsertError>;
 }
 
+/// Failed `inserts` to be scheduled for the next frame.
 pub struct InsertNextFrame<T>
 where
     T: GpuInsert,
@@ -117,6 +130,7 @@ where
     }
 }
 
+/// Clear completed [`GpuInsertCommands`](GpuInsertCommand).
 pub(crate) fn clear_gpu_insert_commands<T>(mut commands: Commands)
 where
     T: GpuInsert,
@@ -125,6 +139,9 @@ where
     commands.insert_resource(Vec::<GpuInsertCommand<T>>::new());
 }
 
+/// Tries to conclude [`GpuInsertCommands`](GpuInsertCommand) for `T` by [`inserting`](GpuInsert::insert) data from staged (readable) buffers to the `MainWorld`.
+///
+/// Failed `inserts` will be scheduled for the next frame.
 pub(crate) fn insert<T>(
     transfer_receiver: Res<GpuInsertReceiver<T>>,
     mut insert_next_frame: ResMut<InsertNextFrame<T>>,
@@ -136,7 +153,10 @@ pub(crate) fn insert<T>(
     let mut param = param.into_inner();
     let mut queued_transfers = std::mem::take(&mut insert_next_frame.commands);
 
-    let mut resolve = |command: GpuInsertCommand<T>| {
+    for command in queued_transfers
+        .drain(..)
+        .chain(transfer_receiver.try_iter())
+    {
         let buffer_slice = command.staging_buffer.slice(
             command.staging_buffer_offset
                 ..command.staging_buffer_offset + (command.bounds.end - command.bounds.start),
@@ -158,12 +178,5 @@ pub(crate) fn insert<T>(
                 insert_next_frame.commands.push(command);
             }
         }
-    };
-
-    for command in queued_transfers
-        .drain(..)
-        .chain(transfer_receiver.try_iter())
-    {
-        resolve(command);
     }
 }

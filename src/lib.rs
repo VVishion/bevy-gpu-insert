@@ -1,17 +1,17 @@
-use std::marker::PhantomData;
-
 use bevy::{
     prelude::{App, CoreStage, Plugin},
     render::{RenderApp, RenderStage},
 };
-pub use compute::graph::TransferNode;
+pub use compute::graph::StagingNode;
+use gpu_insert::{clear_gpu_insert_commands, insert};
+pub use gpu_insert::{GpuInsert, GpuInsertCommand, GpuInsertError, InsertNextFrame};
+use std::marker::PhantomData;
 
 pub mod compute;
 pub mod gpu_insert;
 
-use gpu_insert::{clear_gpu_insert_commands, insert};
-pub use gpu_insert::{GpuInsert, GpuInsertCommand, GpuInsertError, InsertNextFrame};
-
+/// [`Insert`](GpuInsert::insert) data to the `MainWorld` from buffers on the Gpu by issuing [`GpuInsertCommands<T>`](GpuInsertCommand) where `T` implements [`GpuInsert`].
+/// Data to be read will be copied to `staging_buffers` to be staged - making them readable by the Cpu.
 pub struct GpuInsertPlugin<T>
 where
     T: GpuInsert,
@@ -37,7 +37,6 @@ where
 {
     fn build(&self, app: &mut App) {
         app.init_resource::<InsertNextFrame<T>>()
-            // RenderApp is sub app to the App and is run after the App Schedule (App Stages)
             .add_system_to_stage(CoreStage::First, insert::<T>);
 
         let (sender, receiver) = gpu_insert::create_transfer_channels::<T>();

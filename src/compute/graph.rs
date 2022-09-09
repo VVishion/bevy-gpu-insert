@@ -14,15 +14,16 @@ use crate::{
     GpuInsert,
 };
 
-pub struct TransferNode<T>(PhantomData<fn() -> T>);
+/// `RenderGraph` node staging data-fed `staging_buffers` making them readable by the Cpu.
+pub struct StagingNode<T>(PhantomData<fn() -> T>);
 
-impl<T> Default for TransferNode<T> {
+impl<T> Default for StagingNode<T> {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<T> render_graph::Node for TransferNode<T>
+impl<T> render_graph::Node for StagingNode<T>
 where
     T: GpuInsert,
     T: 'static,
@@ -36,6 +37,7 @@ where
         let gpu_insert_commands = world.resource::<Vec<GpuInsertCommand<T>>>();
         let transfer_sender = world.resource::<GpuInsertSender<T>>();
 
+        // IMPORTANT! create command queue to submit early. See below.
         let mut encoder = render_context
             .render_device
             .create_command_encoder(&CommandEncoderDescriptor::default());
@@ -50,6 +52,7 @@ where
             );
         }
 
+        // IMPORTANT! Submit commands to the GPU before staging buffer is staged by submitting `map_async` commands on the main command queue.
         let render_queue = world.resource::<RenderQueue>();
         render_queue.submit(std::iter::once(encoder.finish()));
 

@@ -1,5 +1,6 @@
 use bevy::{
     core::cast_slice,
+    math::UVec3,
     prelude::{Commands, Handle, Res, ResMut},
     render::{
         render_resource::{
@@ -102,9 +103,9 @@ pub(crate) fn prepare_generate_mesh_commands(
     commands.insert_resource(gpu_generate_mesh_commands);
 }
 
-#[derive(Default)]
-pub struct GenerateMeshCommandBindGroups {
-    pub bind_groups: Vec<(u32, BindGroup)>,
+pub struct GenerateMeshDispatch {
+    pub bind_group: BindGroup,
+    pub workgroups: UVec3,
 }
 
 pub(crate) fn queue_generate_mesh_command_bind_groups(
@@ -113,7 +114,7 @@ pub(crate) fn queue_generate_mesh_command_bind_groups(
     pipeline: Res<GenerateMeshPipeline>,
     gpu_generate_mesh_commands: Res<Vec<GpuGenerateMeshCommand>>,
 ) {
-    let mut bind_groups = Vec::new();
+    let mut dispatches = Vec::new();
 
     for gpu_command in gpu_generate_mesh_commands.iter() {
         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
@@ -131,8 +132,15 @@ pub(crate) fn queue_generate_mesh_command_bind_groups(
             layout: &pipeline.bind_group_layout,
         });
 
-        bind_groups.push((gpu_command.subdivisions, bind_group));
+        dispatches.push(GenerateMeshDispatch {
+            bind_group,
+            workgroups: UVec3::new(
+                gpu_command.subdivisions + 1,
+                gpu_command.subdivisions + 1,
+                1,
+            ),
+        });
     }
 
-    commands.insert_resource(GenerateMeshCommandBindGroups { bind_groups });
+    commands.insert_resource(dispatches);
 }
