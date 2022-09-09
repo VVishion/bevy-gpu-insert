@@ -36,10 +36,6 @@ pub(crate) fn clear_generate_mesh_commands(mut commands: Commands) {
     commands.insert_resource(Vec::<GenerateMeshCommand>::new());
 }
 
-pub(crate) fn clear_gpu_generate_mesh_commands(mut commands: Commands) {
-    commands.insert_resource(Vec::<GpuGenerateMeshCommand>::new());
-}
-
 pub(crate) fn extract_generate_mesh_commands(
     mut commands: Commands,
     generate_mesh_commands: Extract<Res<Vec<GenerateMeshCommand>>>,

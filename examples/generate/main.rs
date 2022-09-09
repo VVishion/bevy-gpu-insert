@@ -9,8 +9,8 @@ use bevy_into_render_asset::{IntoRenderAsset, IntoRenderAssetPlugin};
 use bevy_map_handle::MapHandle;
 use compute::{graph::GenerateMeshNode, pipeline::GenerateMeshPipeline};
 use generate_mesh::{
-    clear_generate_mesh_commands, clear_gpu_generate_mesh_commands, extract_generate_mesh_commands,
-    prepare_generate_mesh_commands, queue_generate_mesh_dispatches,
+    clear_generate_mesh_commands, extract_generate_mesh_commands, prepare_generate_mesh_commands,
+    queue_generate_mesh_dispatches,
 };
 
 mod compute;
@@ -54,11 +54,10 @@ impl Plugin for GenerateMeshPlugin {
                 .add_system_to_stage(RenderStage::Extract, extract_generate_mesh_commands)
                 .add_system_to_stage(RenderStage::Extract, extract_generated_mesh)
                 .add_system_to_stage(RenderStage::Prepare, prepare_generate_mesh_commands)
-                .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_dispatches)
-                .add_system_to_stage(RenderStage::Cleanup, clear_gpu_generate_mesh_commands);
+                .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_dispatches);
 
             let generate_terrain_mesh_node = GenerateMeshNode::new();
-            let transfer_node = StagingNode::<GeneratedMesh>::default();
+            let staging_node = StagingNode::<GeneratedMesh>::default();
 
             let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
@@ -67,7 +66,7 @@ impl Plugin for GenerateMeshPlugin {
                 generate_terrain_mesh_node,
             );
 
-            render_graph.add_node(compute::graph::node::STAGE_GENERATED_MESH, transfer_node);
+            render_graph.add_node(compute::graph::node::STAGE_GENERATED_MESH, staging_node);
 
             // is this the right ordering?
             render_graph
