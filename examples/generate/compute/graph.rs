@@ -2,11 +2,12 @@ use bevy::{
     prelude::World,
     render::{
         render_graph,
-        render_resource::{CachedPipelineState, ComputePassDescriptor, PipelineCache},
+        render_resource::{
+            CachedPipelineState, CommandEncoderDescriptor, ComputePassDescriptor, PipelineCache,
+        },
         renderer::{RenderContext, RenderQueue},
     },
 };
-use wgpu::CommandEncoderDescriptor;
 
 use super::pipeline::GenerateMeshPipeline;
 use crate::generate_mesh::GenerateMeshDispatch;

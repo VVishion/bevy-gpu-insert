@@ -17,6 +17,7 @@ use bevy::{
 use bevy_gpu_insert::{GpuInsert, GpuInsertError};
 use bevy_into_render_asset::IntoRenderAsset;
 
+// We can't implement `GpuInsert` for `Mesh`. To simplify the rendering of `GeneratedMesh` we prepare it into `Mesh`'s `GpuMesh` with `IntoRenderAsset`.
 #[derive(TypeUuid, Clone, Deref)]
 #[uuid = "2b6378c3-e473-499f-99b6-7172e6eb0d5a"]
 pub struct GeneratedMesh(pub Mesh);

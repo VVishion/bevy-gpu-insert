@@ -4,10 +4,10 @@ use bevy::{
     prelude::World,
     render::{
         render_graph,
+        render_resource::{CommandEncoderDescriptor, MapMode},
         renderer::{RenderContext, RenderQueue},
     },
 };
-use wgpu::CommandEncoderDescriptor;
 
 use crate::{
     gpu_insert::{GpuInsertCommand, GpuInsertSender},
@@ -65,7 +65,7 @@ where
                     ..command.staging_buffer_offset + (command.bounds.end - command.bounds.start),
             );
 
-            buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            buffer_slice.map_async(MapMode::Read, move |result| {
                 result.unwrap();
                 transfer_sender.try_send(command_clone).unwrap();
             });
