@@ -43,3 +43,36 @@ fn queue_gpu_inserts(
     });
 }
 ```
+
+```rust
+app.add_plugin(GpuInsertPlugin::<GeneratedMesh>::default());
+
+if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
+    ...
+
+    let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
+
+    render_graph.add_node(
+        compute::graph::node::GENERATE_MESH,
+        GenerateMeshNode::default(),
+    );
+
+    render_graph.add_node(
+        compute::graph::node::STAGE_GENERATED_MESH, StagingNode::<GeneratedMesh>::default()
+    );
+
+    render_graph
+        .add_node_edge(
+            compute::graph::node::GENERATE_MESH,
+            compute::graph::node::STAGE_GENERATED_MESH,
+        )
+        .unwrap();
+
+    render_graph
+        .add_node_edge(
+            compute::graph::node::STAGE_GENERATED_MESH,
+            render::main_graph::node::CAMERA_DRIVER,
+        )
+        .unwrap();
+}
+```
