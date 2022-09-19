@@ -26,8 +26,8 @@ pub(crate) struct GenerateMeshNode {
     state: ComputePipelineState,
 }
 
-impl GenerateMeshNode {
-    pub fn new() -> Self {
+impl Default for GenerateMeshNode {
+    fn default() -> Self {
         Self {
             state: ComputePipelineState::Loading,
         }

@@ -56,7 +56,7 @@ impl Plugin for GenerateMeshPlugin {
                 .add_system_to_stage(RenderStage::Prepare, prepare_generate_mesh_commands)
                 .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_dispatches);
 
-            let generate_terrain_mesh_node = GenerateMeshNode::new();
+            let generate_terrain_mesh_node = GenerateMeshNode::default();
             let staging_node = StagingNode::<GeneratedMesh>::default();
 
             let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
