@@ -78,18 +78,17 @@ impl Plugin for GenerateMeshPlugin {
 
         render_graph.add_node(compute::graph::node::STAGE_GENERATED_MESH, staging_node);
 
-        // is this the right ordering?
         render_graph
             .add_node_edge(
+                compute::graph::node::GENERATE_MESH,
                 compute::graph::node::STAGE_GENERATED_MESH,
-                bevy::render::main_graph::node::CAMERA_DRIVER,
             )
             .unwrap();
 
         render_graph
             .add_node_edge(
-                compute::graph::node::GENERATE_MESH,
                 compute::graph::node::STAGE_GENERATED_MESH,
+                bevy::render::main_graph::node::CAMERA_DRIVER,
             )
             .unwrap();
     }
