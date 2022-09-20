@@ -1,7 +1,7 @@
 use bevy::{
-    asset::HandleId,
+    asset::{load_internal_asset, HandleId},
     prelude::*,
-    render,
+    reflect::TypeUuid,
     render::{render_graph::RenderGraph, Extract, RenderApp, RenderStage},
 };
 use bevy_gpu_insert::{GpuInsertPlugin, StagingNode};
@@ -19,6 +19,9 @@ mod generated_mesh;
 
 pub use generate_mesh::{GenerateMeshCommand, GenerateMeshDispatch, GpuGenerateMeshCommand};
 use generated_mesh::{extract_generated_mesh, GeneratedMesh};
+
+pub const GENERATE_MESH_COMPUTE_SHADER_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 2559040374993434261);
 
 pub fn extract_generated_mesh_handles(
     mut commands: Commands,
@@ -42,47 +45,53 @@ struct GenerateMeshPlugin;
 
 impl Plugin for GenerateMeshPlugin {
     fn build(&self, app: &mut App) {
+        load_internal_asset!(
+            app,
+            GENERATE_MESH_COMPUTE_SHADER_HANDLE,
+            "compute/generate_mesh.wgsl",
+            Shader::from_wgsl
+        );
+
         app.add_asset::<GeneratedMesh>()
             .add_plugin(IntoRenderAssetPlugin::<GeneratedMesh>::default())
             .add_plugin(GpuInsertPlugin::<GeneratedMesh>::default())
             .add_system_to_stage(CoreStage::First, clear_generate_mesh_commands);
 
-        if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app
-                .init_resource::<GenerateMeshPipeline>()
-                .add_system_to_stage(RenderStage::Extract, extract_generated_mesh_handles)
-                .add_system_to_stage(RenderStage::Extract, extract_generate_mesh_commands)
-                .add_system_to_stage(RenderStage::Extract, extract_generated_mesh)
-                .add_system_to_stage(RenderStage::Prepare, prepare_generate_mesh_commands)
-                .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_dispatches);
+        let render_app = app.sub_app_mut(RenderApp);
+        render_app
+            .init_resource::<GenerateMeshPipeline>()
+            .add_system_to_stage(RenderStage::Extract, extract_generated_mesh_handles)
+            .add_system_to_stage(RenderStage::Extract, extract_generate_mesh_commands)
+            .add_system_to_stage(RenderStage::Extract, extract_generated_mesh)
+            .add_system_to_stage(RenderStage::Prepare, prepare_generate_mesh_commands)
+            .add_system_to_stage(RenderStage::Queue, queue_generate_mesh_dispatches);
 
-            let generate_terrain_mesh_node = GenerateMeshNode::default();
-            let staging_node = StagingNode::<GeneratedMesh>::default();
+        let generate_terrain_mesh_node = GenerateMeshNode::default();
+        let staging_node = StagingNode::<GeneratedMesh>::default();
 
-            let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
+        let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
-            render_graph.add_node(
+        render_graph.add_node(
+            compute::graph::node::GENERATE_MESH,
+            generate_terrain_mesh_node,
+        );
+
+        render_graph.add_node(compute::graph::node::STAGE_GENERATED_MESH, staging_node);
+
+        // is this the right ordering?
+        render_graph
+            .add_node_edge(
+                compute::graph::node::STAGE_GENERATED_MESH,
+                bevy::render::main_graph::node::CAMERA_DRIVER,
+            )
+            .unwrap();
+
+        render_graph
+            .add_node_edge(
                 compute::graph::node::GENERATE_MESH,
-                generate_terrain_mesh_node,
-            );
-
-            render_graph.add_node(compute::graph::node::STAGE_GENERATED_MESH, staging_node);
-
-            // is this the right ordering?
-            render_graph
-                .add_node_edge(
-                    compute::graph::node::STAGE_GENERATED_MESH,
-                    render::main_graph::node::CAMERA_DRIVER,
-                )
-                .unwrap();
-
-            render_graph
-                .add_node_edge(
-                    compute::graph::node::GENERATE_MESH,
-                    compute::graph::node::STAGE_GENERATED_MESH,
-                )
-                .unwrap();
-        }
+                compute::graph::node::STAGE_GENERATED_MESH,
+            )
+            .unwrap();
     }
 }
 

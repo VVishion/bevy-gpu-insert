@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use bevy::{
-    prelude::{AssetServer, FromWorld, World},
+    prelude::{FromWorld, World},
     render::{
         render_resource::{
             BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
@@ -11,6 +11,8 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
+
+use crate::GENERATE_MESH_COMPUTE_SHADER_HANDLE;
 
 pub struct GenerateMeshPipeline {
     pub bind_group_layout: BindGroupLayout,
@@ -47,12 +49,12 @@ impl FromWorld for GenerateMeshPipeline {
                         },
                     ],
                 });
-        let shader = world.resource::<AssetServer>().load("generate.wgsl");
+
         let mut pipeline_cache = world.resource_mut::<PipelineCache>();
         let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
             layout: Some(vec![bind_group_layout.clone()]),
-            shader: shader.clone(),
+            shader: GENERATE_MESH_COMPUTE_SHADER_HANDLE.typed().into(),
             shader_defs: vec![],
             entry_point: Cow::from("main"),
         });
