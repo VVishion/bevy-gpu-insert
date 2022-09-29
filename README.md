@@ -48,6 +48,7 @@ fn queue_gpu_inserts(
 app.add_plugin(GpuInsertPlugin::<GeneratedMesh>::default());
 
 let render_app = app.sub_app_mut(RenderApp);
+
 ...
 
 let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
