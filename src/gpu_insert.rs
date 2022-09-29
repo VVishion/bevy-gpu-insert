@@ -57,11 +57,11 @@ where
     (GpuInsertSender(s), GpuInsertReceiver(r))
 }
 
-/// Issue an [`GpuInsert::insert`] with data from `buffer` copied to `staging_buffer`  to be staged (readable) for the `MainWorld`.
+/// Issue an [`insert`](GpuInsert::insert) with data from `buffer` copied to `staging_buffer`  to be staged (readable) for the `MainWorld`.
 ///
 /// Data from `buffer` within the `bounds` will be copied to the `staging_buffer` starting at the `staging_buffer_offset`.
 ///
-/// Issue an [`GpuInsertCommand`] for `T` implementing [`GpuInsert`] by pushing it to the resource [`Vec<GpuInsertCommand<T>>`] in the `RenderWorld`.
+/// Dispatched by pushing a [`GpuInsertCommand`] for `T` implementing [`GpuInsert`] to the resource [`Vec<GpuInsertCommand<T>>`] in the `RenderWorld`.
 pub struct GpuInsertCommand<T>
 where
     T: GpuInsert,
