@@ -1,11 +1,9 @@
 use bevy::{
-    core::cast_slice,
     math::UVec3,
     prelude::{Commands, Handle, Res, ResMut},
     render::{
         render_resource::{
-            BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferDescriptor,
-            BufferInitDescriptor, BufferUsages,
+            BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferDescriptor, BufferUsages,
         },
         renderer::RenderDevice,
         Extract,
@@ -25,7 +23,6 @@ pub struct GenerateMeshCommand {
 #[derive(Clone)]
 pub struct GpuGenerateMeshCommand {
     pub buffer: Buffer,
-    pub subdivisions_buffer: Buffer,
     pub staging_buffer: Buffer,
     pub subdivisions: u32,
     pub size: u64,
@@ -72,12 +69,6 @@ pub(crate) fn prepare_generate_mesh_commands(
             mapped_at_creation: false,
         });
 
-        let subdivisions_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            usage: BufferUsages::UNIFORM,
-            label: Some("generate mesh divisions buffer"),
-            contents: cast_slice(&[subdivisions]),
-        });
-
         let staging_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("staging buffer"),
             usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
@@ -87,7 +78,6 @@ pub(crate) fn prepare_generate_mesh_commands(
 
         gpu_generate_mesh_commands.push(GpuGenerateMeshCommand {
             buffer,
-            subdivisions_buffer,
             staging_buffer,
             subdivisions,
             size,
@@ -114,16 +104,10 @@ pub(crate) fn queue_generate_mesh_dispatches(
 
     for gpu_command in gpu_generate_mesh_commands.iter() {
         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: gpu_command.subdivisions_buffer.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: gpu_command.buffer.as_entire_binding(),
-                },
-            ],
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: gpu_command.buffer.as_entire_binding(),
+            }],
             label: Some("generate mesh command bind group"),
             layout: &pipeline.bind_group_layout,
         });
