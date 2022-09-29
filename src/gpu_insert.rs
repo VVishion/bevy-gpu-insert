@@ -61,7 +61,7 @@ where
 ///
 /// Data from `buffer` within the `bounds` will be copied to the `staging_buffer` starting at the `staging_buffer_offset`.
 ///
-/// Issue an [`GpuInsertCommand`] for `T` implementing [`GpuInsert`] by pushing it the resource [`Vec<GpuInsertCommand<T>>`] in the `RenderWorld`.
+/// Issue an [`GpuInsertCommand`] for `T` implementing [`GpuInsert`] by pushing it to the resource [`Vec<GpuInsertCommand<T>>`] in the `RenderWorld`.
 pub struct GpuInsertCommand<T>
 where
     T: GpuInsert,
