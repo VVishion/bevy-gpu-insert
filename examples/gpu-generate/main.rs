@@ -130,30 +130,6 @@ fn setup(
         ComputedVisibility::default(),
     ));
 
-    const HALF_SIZE: f32 = 10.0;
-    commands.spawn_bundle(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            shadow_projection: OrthographicProjection {
-                left: -HALF_SIZE,
-                right: HALF_SIZE,
-                bottom: -HALF_SIZE,
-                top: HALF_SIZE,
-                near: -10.0 * HALF_SIZE,
-                far: 10.0 * HALF_SIZE,
-                ..default()
-            },
-            shadows_enabled: true,
-            illuminance: 10000.0,
-            ..default()
-        },
-        transform: Transform {
-            translation: Vec3::new(0.0, 10.0, 0.0),
-            rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),
-            ..default()
-        },
-        ..default()
-    });
-
     commands.spawn_bundle(Camera3dBundle {
         transform: Transform::from_xyz(-1.0, 5.0, -1.0)
             .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
