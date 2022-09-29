@@ -60,10 +60,7 @@ pub(crate) fn prepare_generate_mesh_commands(
             * (subdivisions + 1) as u64;
 
         let buffer = render_device.create_buffer(&BufferDescriptor {
-            usage: BufferUsages::VERTEX
-                | BufferUsages::STORAGE
-                | BufferUsages::COPY_DST
-                | BufferUsages::COPY_SRC,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             label: Some("generate mesh buffer"),
             size,
             mapped_at_creation: false,

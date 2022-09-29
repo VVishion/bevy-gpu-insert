@@ -95,7 +95,7 @@ impl IntoRenderAsset for GeneratedMesh {
     {
         let vertex_buffer_data = terrain_mesh.get_vertex_buffer_data();
         let vertex_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            usage: BufferUsages::VERTEX | BufferUsages::STORAGE,
+            usage: BufferUsages::VERTEX,
             label: Some("generated mesh vertex buffer"),
             contents: &vertex_buffer_data,
         });
