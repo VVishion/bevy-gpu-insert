@@ -2,7 +2,7 @@
 
 Insert data from buffers on the Gpu to the `MainWorld`.
 
-Take a look at the example: `cargo r --example gpu-generate`.
+Take a look at the example: `cargo r --example gpu-generate`. The example computes the mesh on the Gpu and inserts it to the `MainWorld`. For simplicity the inserted mesh is extracted and prepared even though the data already persists on the Gpu.
 
 ```rust
 impl GpuInsert for GeneratedMesh {
