@@ -95,12 +95,10 @@ pub enum GpuInsertError {
 /// `Insert` data to the `MainWorld` from staged (readable) buffers on the Gpu.
 pub trait GpuInsert {
     /// Data required to complete the `insert`.
-    /// It will be passed forth from the [`GpuInsertCommand`] issuing this `insert`.
-    /// [`GpuInsert::insert`] will be called with `info`.
+    /// It will be passed forth from the [`GpuInsertCommand`] issuing this `insert` to [`GpuInsert::insert`].
     type Info: Clone + Send + Sync;
-    /// Access ECS data required to complete the `insert`.
+    /// Access ECS data required to complete the `insert` within [`GpuInsert::insert`].
     /// Use [`lifetimeless`](bevy::ecs::system::lifetimeless) [`SystemParam`] for convenience.
-    /// [`GpuInsert::insert`] will be called with `param`.
     type Param: SystemParam;
 
     /// Insert data into the `MainWorld`.
