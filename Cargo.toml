@@ -10,7 +10,7 @@ bevy = "0.8"
 crossbeam-channel = "0.5"
 
 [[example]]
-name = "generate"
+name = "gpu-generate"
 
 [dev-dependencies]
 itertools = "0.10"
